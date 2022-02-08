@@ -31,6 +31,18 @@
 </template>
 
 <script>
+import * as imjoyCore from 'imjoy-core'
+
+const imjoy = new imjoyCore.ImJoy({
+    imjoy_api: {},
+    //imjoy config
+});
+
+imjoy.start({workspace: 'default'}).then(async ()=>{
+    console.log('ImJoy started');
+})
+
+
 export default {
   name: 'HelloWorld',
   props: {
