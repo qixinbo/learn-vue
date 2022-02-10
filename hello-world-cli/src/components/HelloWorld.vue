@@ -33,6 +33,10 @@
 <script>
 import * as imjoyCore from 'imjoy-core'
 
+console.log("--------------")
+console.log(imjoyCore)
+console.log("--------------")
+
 const imjoy = new imjoyCore.ImJoy({
     imjoy_api: {},
     //imjoy config
