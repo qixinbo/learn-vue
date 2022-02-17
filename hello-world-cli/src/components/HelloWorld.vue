@@ -32,20 +32,12 @@
 
 <script>
 import * as imjoyCore from 'imjoy-core'
+console.log('************************')
+console.log(imjoyCore)
+console.log('************************')
 const imjoy = new imjoyCore.ImJoy({
     imjoy_api: {},
     //imjoy config
-});
-
-imjoy.event_bus.on("add_window", w => {
-      const container = document.createElement('div');
-      container.id = w.window_id; // <--- this is important
-      container.style.backgroundColor = '#ececec';
-      container.style.height = "800px";
-      container.style.width = "100%";
-      // Here we simply add to the body
-      // but in reality, you can embed it into your UI
-      document.body.appendChild(container)
 });
 
 imjoy.start({workspace: 'default'}).then(async ()=>{
@@ -63,6 +55,17 @@ imjoy.start({workspace: 'default'}).then(async ()=>{
     //     name: "Grid",
     // });
     // await grid.createWindow({ src: "https://kaibu.org" });
+});
+
+imjoy.event_bus.on("add_window", w => {
+      const container = document.createElement('div');
+      container.id = w.window_id; // <--- this is important
+      container.style.backgroundColor = '#ececec';
+      container.style.height = "800px";
+      container.style.width = "100%";
+      // Here we simply add to the body
+      // but in reality, you can embed it into your UI
+      document.body.appendChild(container)
 });
 // imjoy.api.createWindow({
 //     src: "https://grid.imjoy.io/#/app",
