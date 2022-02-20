@@ -1,6 +1,11 @@
 <template>
   <div class="hello">
-    <el-button type="primary"> 按钮 </el-button>
+    <router-link to="/">
+      <el-button> 按钮 </el-button>
+    </router-link>
+    <router-link to="/user">
+      <el-button type="primary"> 按钮2 </el-button>
+    </router-link>
   </div>
 </template>
 
