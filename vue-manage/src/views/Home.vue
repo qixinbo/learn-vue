@@ -1,12 +1,29 @@
 <template>
-	<div>我是Home页面</div>
+    <div>
+        <el-container style="height: 100%">
+          <el-aside width="auto">Aside</el-aside>
+          <el-container>
+            <el-header>Header</el-header>
+            <el-main>Main</el-main>
+          </el-container>
+        </el-container>
+    </div>
 </template>
 
 <script>
 export default{
-	name: 'Home',
-	data () {
-		return {}
-	}
+    name: 'Home',
+    data () {
+        return {}
+    }
 }
 </script>
+
+<style lang="less" scoped>
+    .el-header{
+        background-color: #333;
+    }
+    .el-main{
+        padding-top: 0;
+    }
+</style>
