@@ -1,0 +1,2665 @@
+<template>
+  <div class="imjoy noselect">
+    <md-app>
+      <md-app-toolbar class="md-dense app-toolbar" md-elevation="0">
+      </md-app-toolbar>
+      <md-app-drawer
+        :md-active.sync="menuVisible"
+        @md-closed="wm.resizeAll()"
+        @md-opened="wm.resizeAll()"
+        :md-persistent="screenWidth > 800 ? 'full' : null"
+        :md-swipeable="screenWidth > 600 ? false : true"
+      >
+        <md-card id="plugin-menu" v-show="plugin_loaded" v-if="pm">
+          <md-card-header>
+            <md-button
+              ref="add_plugin_button"
+              :class="pm.installed_plugins.length > 0 ? '' : 'md-primary'"
+              @click="showPluginManagement()"
+            >
+              <md-icon>add</md-icon>Plugins
+            </md-button>
+          </md-card-header>
+
+          <md-card-content>
+            <div v-for="plugin in sortedRunnablePlugins()" :key="plugin.name">
+              <md-divider></md-divider>
+              <div style="display: flex;">
+                <md-badge
+                  :class="plugin.update_available ? '' : 'hide-badge'"
+                  class="md-square md-primary"
+                  md-dense
+                  md-content="NEW"
+                >
+                  <md-menu md-size="medium">
+                    <md-button
+                      class="md-icon-button"
+                      :class="plugin.running ? 'md-accent' : ''"
+                      md-menu-trigger
+                    >
+                      <md-progress-spinner
+                        v-if="plugin.initializing || plugin.terminating"
+                        class="md-accent"
+                        :md-diameter="20"
+                        md-mode="indeterminate"
+                      ></md-progress-spinner>
+                      <plugin-icon
+                        v-else
+                        :icon="plugin.config.icon"
+                      ></plugin-icon>
+                      <md-tooltip v-if="screenWidth > 500">{{
+                        plugin.name + ": " + plugin.config.description
+                      }}</md-tooltip>
+                    </md-button>
+
+                    <md-menu-content>
+                      <md-menu-item @click="showDoc(plugin.id)">
+                        <md-icon>description</md-icon>Docs
+                      </md-menu-item>
+                      <md-menu-item
+                        v-if="plugin.config.origin"
+                        @click="sharePlugin(plugin.id)"
+                      >
+                        <md-icon>share</md-icon>Share
+                      </md-menu-item>
+                      <md-menu-item @click="downloadPlugin(plugin.id)">
+                        <md-icon>cloud_download</md-icon>Export
+                      </md-menu-item>
+                      <md-menu-item @click="editPlugin(plugin.id)">
+                        <md-icon>edit</md-icon>Edit
+                      </md-menu-item>
+                      <md-menu-item @click="reloadPlugin(plugin.config)">
+                        <md-icon>autorenew</md-icon>Reload
+                      </md-menu-item>
+                      <md-menu-item @click="unloadPlugin(plugin)">
+                        <md-icon>clear</md-icon>Terminate
+                      </md-menu-item>
+                      <md-menu-item
+                        class="md-accent"
+                        @click="removePlugin(plugin)"
+                      >
+                        <md-icon>delete_forever</md-icon>Remove
+                      </md-menu-item>
+
+                    </md-menu-content>
+                  </md-menu>
+                </md-badge>
+                <md-button
+                  class="joy-run-button"
+                  :class="
+                    plugin.running
+                      ? 'busy-plugin'
+                      : plugin._disconnected && plugin.engine
+                      ? 'md-accent'
+                      : 'md-primary'
+                  "
+                  :disabled="plugin._disconnected && !plugin.engine"
+                  @click.exact="
+                    plugin._disconnected
+                      ? connectPlugin(plugin)
+                      : runOp(plugin.ops[plugin.name])
+                  "
+                  @click.right.exact="logPlugin(plugin)"
+                >
+                  {{ plugin.config.name + " " + plugin.config.badges }}
+                </md-button>
+
+              </div>
+
+              <div
+                v-for="op in plugin.ops"
+                :key="op.plugin_id + op.name"
+                v-show="plugin.panel_expanded"
+              >
+                <md-button
+                  v-if="op.name != plugin.name"
+                  class="md-icon-button"
+                  :disabled="false"
+                >
+                  <md-icon>chevron_right</md-icon>
+                </md-button>
+                <md-button
+                  v-if="op.name != plugin.name"
+                  class="joy-run-button md-primary op-button"
+                  :class="plugin.running ? 'md-accent' : 'md-primary'"
+                  :disabled="plugin._disconnected"
+                  @click.exact="runOp(op)"
+                  @click.right.exact="logPlugin(plugin)"
+                >
+                  {{ op.name }}
+                </md-button>
+
+                <joy :config="op" :show="plugin.panel_expanded || false"></joy>
+              </div>
+              <md-divider></md-divider>
+            </div>
+            <md-divider></md-divider>
+          </md-card-content>
+        </md-card>
+      </md-app-drawer>
+
+      <md-app-content
+        :class="workspace_dropping ? 'file-dropping' : ''"
+        class="whiteboard-content"
+      >
+        <whiteboard
+          v-if="wm"
+          id="whiteboard"
+          @create="createWindow($event)"
+          :mode="wm.window_mode"
+          :window-manager="wm"
+        ></whiteboard>
+      </md-app-content>
+    </md-app>
+
+    <md-dialog-alert
+      class="api-dialog"
+      :md-active.sync="alert_config.show"
+      :md-title="alert_config.title"
+      :md-content="alert_config.content"
+      :md-confirm-text="alert_config.confirm_text"
+    />
+
+    <md-dialog
+      class="plugin-dialog"
+      :md-active.sync="showAddPluginDialog"
+      :md-click-outside-to-close="true"
+    >
+      <md-dialog-title
+        >{{
+          plugin4install ? "Plugin Installation" : "ImJoy Plugin Management"
+        }}
+        <md-button
+          class="md-accent"
+          style="position:absolute; top:8px; right:5px;"
+          @click="
+            showAddPluginDialog = false;
+            clearPluginUrl();
+          "
+          ><md-icon>clear</md-icon></md-button
+        ></md-dialog-title
+      >
+      <md-dialog-content>
+        <template v-if="show_plugin_templates">
+          <md-menu>
+            <md-button class="md-primary md-raised" md-menu-trigger>
+              <md-icon>add</md-icon>Create a new plugin
+              <md-tooltip>Create a new plugin</md-tooltip>
+            </md-button>
+            <md-menu-content>
+              <md-menu-item
+                @click="
+                  newPlugin(template.code);
+                  showAddPluginDialog = false;
+                "
+                v-for="template in plugin_templates"
+                :key="template.name"
+              >
+                <md-icon>{{ template.icon }}</md-icon
+                >{{ template.name }}
+              </md-menu-item>
+            </md-menu-content>
+          </md-menu>
+          <br />
+          <br />
+        </template>
+
+        <md-card v-if="show_plugin_url">
+          <md-card-header>
+            <div class="md-title">Install from URL</div>
+            <md-toolbar md-elevation="0">
+              <md-field md-clearable class="md-toolbar-section-start">
+                <md-icon>cloud_download</md-icon>
+                <md-input
+                  placeholder="Please paste the URL here and press enter."
+                  type="text"
+                  v-model="plugin_url"
+                  @keyup.enter="
+                    tag4install = '';
+                    getPlugin4Install(plugin_url);
+                  "
+                  name="plugin_url"
+                ></md-input>
+                <md-tooltip>Press `Enter` to get the plugin</md-tooltip>
+              </md-field>
+            </md-toolbar>
+          </md-card-header>
+        </md-card>
+        <div
+          v-if="downloading_plugin && !plugin4install"
+          class="md-toolbar-section-center"
+        >
+          <div style="padding-right: 30px;" class="loading loading-lg"></div>
+        </div>
+        <p v-if="downloading_error">&nbsp;&nbsp;{{ downloading_error }}</p>
+        <md-card v-if="plugin4install">
+          <md-card-media
+            v-if="
+              plugin4install.cover && typeof plugin4install.cover === 'string'
+            "
+            md-ratio="16:9"
+          >
+            <img :src="plugin4install.cover" alt="plugin-cover" />
+          </md-card-media>
+          <div class="carousel" v-else-if="plugin4install.cover">
+            <!-- carousel locator -->
+            <input
+              v-once
+              class="carousel-locator"
+              v-for="(c, k) in plugin4install.cover"
+              :key="k"
+              :id="'slide-' + k"
+              type="radio"
+              name="carousel-radio"
+              hidden=""
+              :checked="k === 1"
+            />
+            <!-- carousel container -->
+            <div class="carousel-container">
+              <!-- carousel item -->
+              <figure
+                class="carousel-item"
+                v-for="(c, k) in plugin4install.cover"
+                :key="k"
+              >
+                <img
+                  class="img-responsive rounded"
+                  :src="c"
+                  alt="plugin cover"
+                />
+              </figure>
+            </div>
+            <!-- carousel navigation -->
+            <div class="carousel-nav">
+              <label
+                class="nav-item text-hide c-hand"
+                v-for="(c, k) in plugin4install.cover"
+                :key="k"
+                :for="'slide-' + k"
+                >{{ k }}</label
+              >
+            </div>
+          </div>
+          <md-card-header>
+            <md-toolbar md-elevation="0">
+              <div style="margin-top: 30px;margin-bottom: 30px;">
+                <h2>
+                  <plugin-icon :icon="plugin4install.icon"></plugin-icon>
+                  {{ plugin4install.name + " " + plugin4install.badges }}
+                </h2>
+              </div>
+              <div
+                v-if="installing || !plugin_loaded"
+                class="md-toolbar-section-end"
+              >
+                <div
+                  style="padding-right: 30px;"
+                  class="loading loading-lg"
+                ></div>
+              </div>
+              <div v-else-if="tag4install" class="md-toolbar-section-end">
+                <md-button
+                  class="md-button md-primary"
+                  @click="installPlugin(plugin4install, tag4install)"
+                >
+                  <md-icon>cloud_download</md-icon
+                  >{{ plugin4install._installation_text || "Install" }}
+                  <md-tooltip
+                    >Install {{ plugin4install.name }} (tag=`{{
+                      tag4install
+                    }}`)</md-tooltip
+                  >
+                </md-button>
+              </div>
+              <div v-else class="md-toolbar-section-end">
+                <md-menu
+                  v-if="plugin4install.tags && plugin4install.tags.length > 0"
+                >
+                  <md-button class="md-button md-primary" md-menu-trigger>
+                    <md-icon>cloud_download</md-icon
+                    >{{ plugin4install._installation_text || "Install" }}
+                    <md-tooltip
+                      >Choose a tag to install
+                      {{ plugin4install.name }}</md-tooltip
+                    >
+                  </md-button>
+                  <md-menu-content>
+                    <md-menu-item
+                      v-for="tag in plugin4install.tags"
+                      :key="tag"
+                      @click="installPlugin(plugin4install, tag)"
+                    >
+                      <md-icon>cloud_download</md-icon>{{ tag }}
+                    </md-menu-item>
+                  </md-menu-content>
+                </md-menu>
+                <md-button
+                  v-else
+                  class="md-button md-primary"
+                  @click="installPlugin(plugin4install)"
+                >
+                  <md-icon>cloud_download</md-icon
+                  >{{ plugin4install._installation_text || "Install" }}
+                </md-button>
+              </div>
+            </md-toolbar>
+          </md-card-header>
+          <md-card-content>
+            <p>Version: {{ plugin4install.version }}</p>
+            <p>{{ plugin4install.description }}</p>
+            <md-chip
+              v-for="tag in plugin4install.tags"
+              @click="tag4install = tag"
+              :class="tag4install === tag ? 'md-primary' : ''"
+              :key="tag"
+              >{{ tag }}</md-chip
+            >
+            <!-- <md-button class="md-button md-primary" @click="showCode(plugin4install)">
+            <md-icon>code</md-icon>Code
+          </md-button> -->
+            <br />
+            <md-switch v-if="plugin4install.code" v-model="show_plugin_source"
+              >Show plugin source code</md-switch
+            >
+            <p>
+              This plugin is <strong>NOT</strong> provided by ImJoy.io. Please
+              make sure the plugin is provided by a trusted source, otherwise it
+              may <strong>harm</strong> your computer.
+            </p>
+            <plugin-editor
+              v-if="show_plugin_source"
+              class="code-editor"
+              v-model="plugin4install.code"
+              :title="plugin4install.name"
+            ></plugin-editor>
+          </md-card-content>
+        </md-card>
+
+      </md-dialog-content>
+    </md-dialog>
+  </div>
+</template>
+
+<script>
+/*eslint no-unused-vars: ["error", { "argsIgnorePattern": "^_plugin$" }]*/
+
+import { saveAs } from "file-saver";
+import axios from "axios";
+import { plugin_templates } from "../plugins";
+import { version } from "../../package.json";
+import { version as core_version } from "imjoy-core";
+
+import DOMPurify from "dompurify";
+
+import { ImJoy, Joy, utils, ajv } from "imjoy-core";
+
+import { escapeHTML, assert, url_regex, randId } from "../utils.js";
+
+import _ from "lodash";
+
+import Minibus from "minibus";
+
+export default {
+  name: "imjoy",
+  data() {
+    return {
+      imjoy: null,
+      pm: null, //plugin_manager
+      em: null, //engine_manager
+      wm: null, //window_manager
+      workflow_expand: false,
+      file_select: null,
+      folder_select: null,
+      selected_file: null,
+      selected_files: null,
+      showSettingsDialog: false,
+      showAboutDialog: false,
+      showAddPluginDialog: false,
+      permission_message: "No permission message.",
+      share_url_message: "No url",
+      resolve_permission: null,
+      reject_permission: null,
+      plugin_url: null,
+      downloading_plugin: false,
+      downloading_error: "",
+      plugin4install: null,
+      tag4install: "",
+      show_plugin_source: false,
+      init_plugin_search: null,
+      show_plugin_templates: true,
+      show_plugin_store: true,
+      show_plugin_url: true,
+      show_installed_plugins: false,
+      selected_dialog_window: {},
+      dialog_window_config: {
+        width: "800px",
+        height: "670px",
+        draggable: true,
+      },
+      progress: 0,
+      status_text: "",
+      showWorkspaceDialog: false,
+      show_file_dialog: false,
+      plugins: null,
+      registered: null,
+      menuVisible: false,
+      snackbar_info: "",
+      snackbar_duration: 3000,
+      show_snackbar: false,
+      screenWidth: 1024,
+      plugin_loaded: false,
+      new_workspace_name: "",
+      workspace_dropping: false,
+      max_window_buttons: 9,
+      installing: false,
+      latest_version: null,
+      is_latest_version: false,
+      core_version: null,
+      checking: false,
+      alert_config: { show: false },
+      confirm_config: { show: false, confirm: () => {}, cancel: () => {} },
+      prompt_config: { show: false, confirm: () => {}, cancel: () => {} },
+      selected_file_managers: [],
+      selected_windows_stack: [],
+      flags: [],
+    };
+  },
+  props: {
+    exposeAPI: { type: Boolean, default: false },
+  },
+  watch: {
+    // menuVisible() {
+    //   this.wm.resizeAll();
+    // },
+  },
+  computed: {
+    version_badge_url: function() {
+      if (this.latest_version) {
+        const color = this.is_latest_version ? "success" : "orange";
+        return (
+          "https://img.shields.io/badge/ImJoyApp-v" +
+          this.imjoy_version +
+          "-" +
+          color +
+          ".svg"
+        );
+      } else {
+        return null;
+      }
+    },
+    core_badge_url: function() {
+      if (this.core_version) {
+        return (
+          "https://img.shields.io/badge/ImJoyCore-v" +
+          this.core_version +
+          "-success.svg"
+        );
+      } else {
+        return null;
+      }
+    },
+    dialogWindows: function() {
+      return this.wm.windows
+        .filter(w => {
+          return w.dialog;
+        })
+        .reverse();
+    },
+    windows: function() {
+      return this.wm.windows.filter(w => {
+        return !w.dialog;
+      });
+    },
+  },
+  created() {
+    this.imjoy_version = version;
+    this.core_version = core_version;
+    // mocks it for testing if not available
+    this.event_bus =
+      (this.$root.$data.store && this.$root.$data.store.event_bus) ||
+      Minibus.create();
+    const imjoy_api = {
+      alert: this.showAlert,
+      prompt: this.showPrompt,
+      confirm: this.showConfirm,
+      showDialog: this.showDialog,
+      showProgress: this.showProgress,
+      showStatus: this.showStatus,
+      showFileDialog: this.showFileDialog,
+      showSnackbar: this.showSnackbar,
+      uploadFileToUrl: this.uploadFileToUrl,
+      downloadFileFromUrl: this.downloadFileFromUrl,
+      showMessage: (plugin, info, duration) => {
+        this.showMessage(info, duration);
+      },
+      utils: {
+        $forceUpdate: this.$forceUpdate,
+        openUrl: this.openUrl,
+        sleep: this.sleep,
+        //TODO: deprecate assert in the next version
+        assert: assert,
+      },
+    };
+
+    // localStorage won't be accessible in incognito mode
+    try {
+      this.client_id = localStorage.getItem("imjoy_client_id");
+      if (!this.client_id) {
+        this.client_id = "imjoy_web_" + randId();
+        localStorage.setItem("imjoy_client_id", this.client_id);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
+    if (this.$route.query.flags) {
+      this.flags = this.$route.query.flags.split(",");
+    } else {
+      this.flags = [];
+    }
+
+    const expose_api =
+      this.$route.query.expose !== undefined
+        ? this.$route.query.expose
+        : this.exposeAPI;
+    this.imjoy = new ImJoy({
+      imjoy_api: imjoy_api,
+      event_bus: this.event_bus,
+      client_id: this.client_id,
+      default_base_frame: "https://lib.imjoy.io/default_base_frame.html",
+      default_rpc_base_url: null,
+      expose_api: expose_api,
+      flags: this.flags,
+    });
+    this.imjoy.event_bus.on("show_message", msg => {
+      this.showMessage(msg);
+    });
+    this.imjoy.event_bus.on("add_window", w => this.addWindowCallback(w));
+    this.imjoy.event_bus.on("update_ui", () => this.$forceUpdate());
+
+    this.pm = this.imjoy.pm;
+    this.em = this.imjoy.em;
+    this.fm = this.imjoy.fm;
+    this.wm = this.imjoy.wm;
+
+    this.IMJOY_PLUGIN = {
+      _id: "IMJOY_APP",
+    };
+    this.plugin_templates = plugin_templates;
+    this.workflow_joy_config = {
+      expanded: true,
+      name: "Workflow",
+      ui: "{id:'workflow', type:'ops'}",
+    };
+    const insideWhiteboard = target => {
+      const whiteboard = document.getElementById("whiteboard");
+      return target && whiteboard && whiteboard.contains(target);
+    };
+    const insideFileDialog = target => {
+      const dialog = document.getElementById("engine-file-dialog");
+      return target && dialog && dialog.contains(target);
+    };
+    document.addEventListener("dragover", e => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (insideWhiteboard(e.target)) {
+        if (!this.workspace_dropping) {
+          this.workspace_dropping = true;
+          this.$forceUpdate();
+        }
+      }
+      if (insideFileDialog(e.target)) {
+        this.event_bus.emit("drag_upload_enter");
+      }
+    });
+    document.addEventListener("dragenter", e => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (insideWhiteboard(e.target)) {
+        this.workspace_dropping = true;
+        this.$forceUpdate();
+      }
+      if (insideFileDialog(e.target)) {
+        this.event_bus.emit("drag_upload_enter");
+      }
+    });
+    document.addEventListener("dragleave", e => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (this.workspace_dropping) {
+        this.workspace_dropping = false;
+        this.$forceUpdate();
+      }
+      if (!insideFileDialog(e.target)) {
+        this.event_bus.emit("drag_upload_leave");
+      }
+    });
+    const parseFiles = e => {
+      return new Promise((resolve, reject) => {
+        const filelist = [];
+        let folder_supported = false;
+        // https://gist.github.com/tiff/3076863
+        const traverseFileTree = (item, path, getDataLoaders, end) => {
+          path = path || "";
+          if (item && item.isFile) {
+            // Get file
+            item.file(file => {
+              file._path = path + file.name;
+              file.loaders = getDataLoaders(file);
+              filelist.push(file);
+              if (end) resolve(filelist);
+            });
+          } else if (item && item.isDirectory) {
+            // Get folder contents
+            var dirReader = item.createReader();
+            dirReader.readEntries(entries => {
+              for (var i = 0; i < entries.length; i++) {
+                traverseFileTree(
+                  entries[i],
+                  path + item.name + "/",
+                  getDataLoaders,
+                  end && i === entries.length - 1
+                );
+              }
+            });
+          } else {
+            if (end) resolve(filelist);
+          }
+        };
+        var length = e.dataTransfer.items.length;
+        if (length === 0) {
+          reject();
+          return;
+        }
+        for (var i = 0; i < length; i++) {
+          if (e.dataTransfer.items[i].webkitGetAsEntry) {
+            folder_supported = true;
+            var entry = e.dataTransfer.items[i].webkitGetAsEntry();
+            traverseFileTree(
+              entry,
+              null,
+              f => {
+                return this.wm.getDataLoaders(f);
+              },
+              i === length - 1
+            );
+          }
+        }
+        if (!folder_supported) {
+          this.selected_files = e.dataTransfer.files;
+        } else {
+          this.selected_files = filelist;
+        }
+      });
+    };
+    document.addEventListener("drop", e => {
+      e.preventDefault();
+      if (insideWhiteboard(e.target)) {
+        parseFiles(e).then(this.loadFiles);
+        this.workspace_dropping = false;
+        this.$forceUpdate();
+      } else if (insideFileDialog(e.target)) {
+        this.event_bus.emit("drag_upload_leave");
+        parseFiles(e).then(files => {
+          this.event_bus.emit("drag_upload", files);
+        });
+      }
+    });
+  },
+  beforeRouteLeave(to, from, next) {
+    if (this.wm && this.wm.windows.length > 0) {
+      const answer = window.confirm(
+        "Do you really want to leave? you have unsaved changes!"
+      );
+      if (answer) {
+        next();
+      } else {
+        next(false);
+      }
+    } else {
+      next();
+    }
+  },
+  mounted() {
+    this.event_bus.on("resize", this.updateSize);
+    this.event_bus.on("plugin_loaded", () => {
+      //update the joy workflow if new template added, TODO: preserve settings during reload
+      if (this.$refs.workflow && this.$refs.workflow.setupJoy)
+        this.$refs.workflow.setupJoy();
+    });
+    this.event_bus.on("op_registered", () => {
+      //update the joy workflow if new template added, TODO: preserve settings during reload
+      if (this.$refs.workflow && this.$refs.workflow.setupJoy)
+        this.$refs.workflow.setupJoy();
+    });
+    this.event_bus.on("closing_window_plugin", wplugin => {
+      this.closeWindowDialog(wplugin);
+    });
+    this.updateSize({ width: window.innerWidth });
+    if (this.wm) {
+      if (this.screenWidth > 800) {
+        this.wm.window_mode = "grid";
+      } else {
+        this.wm.window_mode = "single";
+      }
+    }
+
+    // Make sure the GUI is refreshed
+    // setInterval(() => {
+    //   this.$forceUpdate();
+    // }, 5000);
+    this.startImJoy(this.$route).then(() => {
+      if (
+        // Do not show the welcome dialog in quiet mode
+        !this.flags.includes("quiet") &&
+        !this.showAddPluginDialog &&
+        (!this.pm.plugins || Object.keys(this.pm.plugins) <= 0)
+      ) {
+        this.pm
+          .reloadPluginRecursively({
+            uri: "imjoy-team/imjoy-plugins:Welcome",
+          })
+          .then(() => {
+            this.showDialog(null, {
+              type: "Welcome",
+              name: "Welcome to ImJoy",
+            });
+          });
+      }
+      /* global window */
+      if (window.gtag) {
+        // CAREFUL: DO NOT SEND ANY QUERY STRING, ONLY LOCATION AND PATH
+        window.gtag("config", "UA-134837258-1", {
+          page_location: location.href.split("#")[0],
+          page_path: "/#/app",
+        });
+      }
+    });
+  },
+  beforeDestroy() {
+    this.imjoy.destroy();
+  },
+  methods: {
+    async startImJoy(route) {
+      await this.imjoy.init();
+
+      const r = (route.query.repo || route.query.r || "").trim();
+      if (r) {
+        this.plugin_url = null;
+        this.init_plugin_search = null;
+        this.show_plugin_store = true;
+        this.show_plugin_url = false;
+        this.downloading_plugin = true;
+        try {
+          this.pm.selected_repository = await this.pm.addRepository(r);
+          this.downloading_plugin = false;
+        } catch (e) {
+          this.downloading_plugin = false;
+          this.downloading_error =
+            "Sorry, the repository URL is invalid: " + e.toString();
+        }
+        this.show_plugin_templates = false;
+        this.showAddPluginDialog = true;
+      }
+
+      for (let inputs of this.getDefaultInputLoaders()) {
+        this.wm.registerInputLoader(inputs.loader_key, inputs, inputs.loader);
+      }
+      this.repository_list = await this.pm.loadRepositoryList();
+      this.pm.selected_repository = this.repository_list[0];
+
+      try {
+        if (!this.flags.includes("quiet")) {
+          if (route.query.start || route.query.s) {
+            this.menuVisible = false;
+          } else {
+            this.menuVisible = true;
+          }
+        }
+
+        const selected_workspace =
+          route.query.workspace || route.query.w || this.pm.workspace_list[0];
+
+        await this.pm.loadWorkspace(selected_workspace);
+        this.plugin_loaded = true;
+        const engineManager =
+          (await this.imjoy.api.getPlugin("Jupyter-Engine-Manager")) ||
+          (await this.imjoy.api.getPlugin({
+            src:
+              "https://imjoy-team.github.io/jupyter-engine-manager/Jupyter-Engine-Manager.imjoy.html",
+          }));
+        if (route.query.engine) {
+          try {
+            const engineUrl = route.query.engine;
+            const en = this.em.getEngineByUrl(engineUrl);
+            if (en) {
+              if (!(await en.heartbeat())) {
+                await en.connect();
+              }
+            } else {
+              if (
+                !route.query.engineType ||
+                route.query.engineType === "jupyter"
+              ) {
+                await engineManager.createEngine({
+                  name: "MyJupyterEngine",
+                  url: engineUrl.split("?")[0],
+                  nbUrl: engineUrl,
+                });
+              } else if (
+                route.query.engineType &&
+                route.query.engineType === "binder"
+              ) {
+                await engineManager.createEngine({
+                  name: "MyBinderEngine",
+                  url: "https://mybinder.org",
+                  spec: route.query.spec || "oeway/imjoy-binder-image/master",
+                });
+              }
+            }
+          } catch (e) {
+            this.showMessage("Failed to connect to the specified engine");
+            console.error("Failed to connect to engine", e);
+          }
+        }
+
+        await this.pm.reloadPlugins();
+
+        const p = (route.query.plugin || route.query.p || "").trim();
+        let plugin_config = null;
+        if (p) {
+          if (p.match(url_regex) || (p.includes("/") && p.includes(":"))) {
+            this.plugin_url = p;
+            this.init_plugin_search = null;
+            this.show_plugin_store = false;
+            this.show_plugin_url = false;
+            try {
+              plugin_config = await this.getPlugin4Install(p);
+              //check if the same plugin is already installed
+              if (
+                !this.pm.plugin_names[plugin_config.name] ||
+                route.query.upgrade ||
+                plugin_config.version !==
+                  this.pm.plugin_names[plugin_config.name].config.version
+              ) {
+                this.show_plugin_templates = false;
+                this.showAddPluginDialog = true;
+              } else {
+                this.showMessage(
+                  `Plugin "${plugin_config.name}" is already installed.`
+                );
+              }
+            } catch (e) {
+              console.error(e);
+              await this.showAlert(null, e);
+            }
+          } else {
+            this.plugin_url = null;
+            this.init_plugin_search = p;
+            this.show_plugin_store = true;
+            this.show_plugin_url = false;
+            this.show_plugin_templates = false;
+            this.showAddPluginDialog = true;
+          }
+        } else {
+          if (route.query.workflow) {
+            this.loadWorkfowFromUrl();
+          }
+        }
+        this.event_bus.emit("plugins_loaded", this.pm.plugins);
+        try {
+          const manifest = await this.pm.reloadRepository();
+          this.event_bus.emit("repositories_loaded", manifest);
+        } finally {
+          this.$nextTick(() => {
+            this.event_bus.emit("imjoy_ready");
+          });
+        }
+
+        if (route.query.start) {
+          let plugin;
+          for (let k in this.plugins) {
+            if (this.plugins[k].name === route.query.start) {
+              plugin = this.plugins[k];
+            }
+          }
+          if (plugin) {
+            await plugin.connected;
+            if (plugin.api && plugin.api.run) {
+              await plugin.api.run({ config: {}, data: route.query });
+            }
+          } else {
+            console.error(`Plugin ${route.query.start} is not found.`);
+            const start_when_loaded = async plugin => {
+              if (plugin.name !== route.query.start) {
+                return;
+              }
+              this.event_bus.off("plugin_loaded", start_when_loaded);
+              await plugin.connected;
+              if (plugin.api && plugin.api.run) {
+                await plugin.api.run({ config: {}, data: route.query });
+              }
+            };
+            this.event_bus.on("plugin_loaded", start_when_loaded);
+          }
+        }
+      } catch (e) {
+        this.showMessage(e);
+      }
+      this.$forceUpdate();
+      this.$nextTick(() => {
+        this.checkImJoyUpdate();
+        //check for update every 20 minutes
+        window.setInterval(() => {
+          this.checkImJoyUpdate(true);
+        }, 1200000);
+      });
+    },
+    showWindowDialog(w) {
+      this.selected_dialog_window = w;
+      this.$modal.show("window-modal-dialog");
+      if (this.screenWidth < 600 || w.fullscreen || w.standalone) {
+        this.fullscreenWindowDialog(w);
+      } else {
+        this.normalWindowDialog(w);
+      }
+    },
+    activateWindow(w) {
+      if (w.dialog) w.api.show();
+      else w.api.focus();
+    },
+    addWindowCallback(w) {
+      return new Promise((resolve, reject) => {
+        if (!w || !this.wm.window_ids[w.id]) {
+          reject("window was closed");
+          return;
+        }
+        try {
+          if (w.dialog) {
+            this.selected_windows_stack.push(w);
+          }
+          const me = this;
+          w.api = w.api || {};
+          w.api.on("refresh", () => {
+            me.$forceUpdate();
+          });
+          //move refresh to next tick
+          const _refresh = w.refresh;
+          if (_refresh) {
+            w.refresh = () => {
+              me.$nextTick(() => {
+                _refresh();
+                me.$forceUpdate();
+              });
+            };
+          }
+          if (w.dialog) {
+            w.api.show = w.show = () => {
+              me.showWindowDialog(w);
+              me.wm.selectWindow(w);
+              w.api.emit("show");
+            };
+
+            w.api.hide = w.hide = () => {
+              me.hideWindowDialog(w);
+              w.api.emit("hide");
+            };
+
+            setTimeout(() => {
+              try {
+                w.show();
+              } catch (e) {
+                console.error(e);
+              }
+            }, 500);
+          }
+          this.$nextTick(() => {
+            this.$forceUpdate();
+            resolve();
+          });
+        } catch (e) {
+          reject(e);
+        }
+      });
+    },
+    createWindow(w) {
+      w.getDataLoaders = data => {
+        const loaders = this.wm.getDataLoaders(data);
+        return loaders;
+      };
+      return this.pm.createWindow(null, w);
+    },
+    async restartImJoy() {
+      window.location.reload(true);
+    },
+    async checkImJoyUpdate(quiet) {
+      this.checking = true;
+      try {
+        const response = await axios.get(
+          "https://imjoy.io/version.json?" + randId()
+        );
+        if (!response || !response.data) {
+          this.showMessage("Failed to fetch imjoy version information.");
+          return;
+        }
+        const obj = response.data;
+        if (obj && obj.version) {
+          this.latest_version = obj.version;
+          this.is_latest_version = utils.compareVersions(
+            this.imjoy_version,
+            ">=",
+            obj.version
+          );
+          if (this.is_latest_version) {
+            if (!quiet) {
+              if (utils.compareVersions(this.imjoy_version, ">", obj.version)) {
+                this.showMessage(
+                  `🍻 Your ImJoy (v${
+                    this.imjoy_version
+                  }) is newer than the release (v${this.latest_version}).`
+                );
+              } else {
+                this.showMessage(
+                  `🎉 ImJoy is up to date (version ${this.latest_version}).`
+                );
+              }
+            }
+          } else {
+            this.showMessage(
+              `📣 A newer version of ImJoy (version ${
+                this.latest_version
+              }) is available, please restart ImJoy.`
+            );
+          }
+        } else {
+          this.latest_version = null;
+        }
+      } catch (e) {
+        this.showMessage("Failed to fetch imjoy version information");
+      } finally {
+        this.checking = false;
+      }
+      this.pm.checkUpdates();
+    },
+    getDefaultInputLoaders() {
+      const image_loader = file => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          this.createWindow({
+            name: file.name,
+            type: "imjoy/image",
+            data: { type: "imjoy/image", src: reader.result, file: file },
+          });
+        };
+        reader.readAsDataURL(file);
+      };
+
+      const code_loader = file => {
+        const w = {
+          name: "New Plugin",
+          type: "imjoy/plugin-editor",
+          config: {},
+          plugin_manager: this.pm,
+          engine_manager: this.em,
+          w: 30,
+          h: 20,
+          standalone: this.screenWidth < 1200,
+          plugin: {},
+          data: {
+            type: "imjoy/code",
+            name: "new plugin",
+            id: "plugin_" + randId(),
+            code: "",
+            local_file_obj: file,
+          },
+        };
+        this.createWindow(w);
+      };
+
+      const engine_code_loader = engine_file_obj => {
+        const w = {
+          name: "New Plugin",
+          type: "imjoy/plugin-editor",
+          config: {},
+          plugin_manager: this.pm,
+          engine_manager: this.em,
+          w: 30,
+          h: 20,
+          standalone: this.screenWidth < 1200,
+          plugin: {},
+          data: {
+            type: "imjoy/code",
+            name: "new plugin",
+            id: "plugin_" + randId(),
+            code: "",
+            engine_file_obj: engine_file_obj,
+          },
+        };
+        this.createWindow(w);
+      };
+
+      const engine_image_loader = engine_image_file => {
+        const tmp = engine_image_file.url.split("/");
+        const file_name = tmp[tmp.length - 1];
+        this.createWindow({
+          name: file_name,
+          type: "imjoy/image",
+          data: { type: "imjoy/image", src: engine_image_file.url },
+        });
+      };
+
+      return [
+        {
+          loader_key: "Code Editor (file)",
+          schema: ajv.compile({
+            file: { ext: ["imjoy.html", "js", "txt"] },
+          }),
+          loader: code_loader,
+        },
+        {
+          loader_key: "Code Editor (url)",
+          schema: ajv.compile({
+            type: "object",
+            properties: {
+              type: { type: "string", enum: ["imjoy/url"] },
+              url: {
+                type: "string",
+                pattern: ".*\\.imjoy.html$",
+                maxLength: 1024,
+              },
+              path: { type: "string" },
+              engine: { type: "string" },
+            },
+            required: ["url", "path", "engine"],
+          }),
+          loader: engine_code_loader,
+        },
+        {
+          loader_key: "Image (file)",
+          schema: ajv.compile({ file: { mime: "image/*" } }),
+          loader: image_loader,
+        },
+        {
+          loader_key: "Image (url)",
+          schema: ajv.compile({
+            type: "object",
+            properties: {
+              type: { type: "string", enum: ["imjoy/url"] },
+              url: {
+                type: "string",
+                maxLength: 1024,
+                pattern: "(.*\\.jpg|\\.jpeg|\\.png|\\.gif)$",
+              },
+              path: { type: "string" },
+              engine: { type: "string" },
+            },
+            required: ["url", "path", "engine", "type"],
+          }),
+          loader: engine_image_loader,
+        },
+      ];
+    },
+    updateSize(e) {
+      this.screenWidth = e.width;
+      if (this.wm) {
+        if (this.screenWidth > 800) {
+          if (this.windows.length === 0) this.wm.window_mode = "grid";
+          this.max_window_buttons = 9;
+        } else {
+          if (this.windows.length === 0) this.wm.window_mode = "single";
+          this.max_window_buttons = parseInt(this.screenWidth / 36 - 4);
+          if (this.max_window_buttons > 9) this.max_window_buttons = 9;
+        }
+        this.wm.resizeAll();
+      }
+      this.$forceUpdate();
+    },
+    showEngineConnection(show, engine) {
+      this.event_bus.emit("show_engine_dialog", {
+        show: show,
+        engine: engine,
+      });
+    },
+    getRepository(repo_name) {
+      for (let r of this.pm.repository_list) {
+        if (r.name === repo_name) {
+          return r;
+        }
+      }
+    },
+    selectRepository(repo) {
+      for (let r of this.pm.repository_list) {
+        if (r.name === repo) {
+          this.pm.reloadRepository(r).then(() => {
+            this.$forceUpdate();
+          });
+          return r;
+        }
+      }
+    },
+    switchEngine(plugin, engine) {
+      plugin.config.engine_mode = (engine && engine.name) || "auto";
+      this.pm
+        .savePlugin(plugin.config)
+        .then(p => {
+          this.pm.reloadPlugin(p);
+        })
+        .catch(e => {
+          this.showMessage("Failed to save settings: " + e.toString());
+        });
+    },
+    switchTag(plugin, tag) {
+      plugin.config.tag = tag;
+      this.pm
+        .savePlugin(plugin.config)
+        .then(p => {
+          this.pm.reloadPlugin(p);
+        })
+        .catch(e => {
+          this.showMessage("Failed to save settings: " + e.toString());
+        });
+    },
+    connectPlugin(plugin) {
+      if (plugin._disconnected) {
+        if (plugin.engine && !plugin.engine.connected) {
+          plugin.engine.connect();
+        } else {
+          this.pm.reloadPlugin(plugin.config);
+        }
+      }
+    },
+    async getPlugin4Install(plugin_url) {
+      this.plugin4install = null;
+      this.downloading_error = "";
+      this.downloading_plugin = true;
+      try {
+        const config = await this.pm.getPluginFromUrl(plugin_url);
+
+        if (this.pm.plugin_names[config.name]) {
+          if (
+            utils.compareVersions(
+              config.version,
+              ">",
+              this.pm.plugin_names[config.name].config.version
+            )
+          ) {
+            config._installation_text = "Upgrade";
+          } else if (
+            utils.compareVersions(
+              config.version,
+              "<",
+              this.pm.plugin_names[config.name].config.version
+            )
+          ) {
+            config._installation_text = "Downgrade";
+          }
+        }
+        this.plugin4install = config;
+        this.tag4install = config.tag;
+        this.downloading_plugin = false;
+        return config;
+      } catch (e) {
+        this.downloading_plugin = false;
+        this.downloading_error = `${e}`;
+        this.showMessage(this.downloading_error);
+        throw e;
+      }
+    },
+    showPluginManagement() {
+      this.plugin4install = null;
+      this.downloading_error = "";
+      this.downloading_plugin = false;
+      this.init_plugin_search = "";
+      this.show_plugin_templates = true;
+      this.show_plugin_store = true;
+      this.show_plugin_url = true;
+      this.showAddPluginDialog = true;
+      //select ImJoy repo as default
+      for (let repo of this.pm.repository_list) {
+        if (repo.name === this.pm.default_repository_list[0].name) {
+          this.selectRepository(repo.name);
+        }
+      }
+    },
+    sortedRunnablePlugins: function() {
+      return _.orderBy(this.pm.plugins, "name").filter(p => {
+        return p.config.runnable;
+      });
+    },
+
+    sortedNonRunnablePlugins: function() {
+      return _.orderBy(this.pm.plugins, "name").filter(p => {
+        return !p.config.runnable;
+      });
+    },
+    switchWorkspace(w) {
+      // console.log('switch to ', w)
+      if (!w || w.trim() == "") {
+        this.showMessage("Workspace name should not be empty.");
+        throw "Workspace name should not be empty.";
+      }
+      let q = {
+        workspace: w,
+      };
+      if (w === "default") {
+        q = null;
+      }
+      this.$router.push({
+        name: "app",
+        query: q,
+      });
+      window.location.reload();
+    },
+    removeWorkspace(w) {
+      const load_default = this.pm.selected_workspace === w.name;
+      this.pm
+        .removeWorkspace(w)
+        .then(() => {
+          this.showMessage(`Workspace ${w} has been deleted.`);
+          // if current workspace is deleted, go to default
+          if (load_default) {
+            this.$router.replace({
+              query: {
+                w: "default",
+              },
+            });
+          }
+        })
+        .catch(e => {
+          this.showMessage(e);
+        });
+    },
+    showMessage(info, duration) {
+      info = String(info);
+      this.snackbar_info = info;
+      if (duration) {
+        duration = duration * 1000;
+      }
+      this.snackbar_duration = duration || 10000;
+      this.show_snackbar = true;
+      this.status_text = info;
+      this.$forceUpdate();
+    },
+    showFileManagers(file_manager) {
+      this.showFileDialog(null, {
+        uri_type: "url",
+        root: "./",
+        file_manager: file_manager,
+      })
+        .then(selection => {
+          if (this.screenWidth <= 800) {
+            this.menuVisible = false;
+          }
+          if (!selection) {
+            return;
+          }
+
+          const loaders = this.wm.getDataLoaders(selection);
+          const keys = Object.keys(loaders);
+          if (keys.length > 1) {
+            const w = {
+              name: "Engine Files",
+              type: "imjoy/generic",
+              scroll: true,
+              data: selection,
+            };
+            this.createWindow(w);
+          } else if (keys.length === 1) {
+            this.wm.registered_loaders[loaders[keys[0]]](selection);
+          } else {
+            if (!Array.isArray(selection)) {
+              selection = [selection];
+            }
+            const urls = [];
+            for (let u of selection) {
+              if (u.url) {
+                urls.push(u);
+              } else {
+                urls.push({ url: u });
+              }
+            }
+            const w = {
+              name: "Files",
+              type: "imjoy/generic",
+              scroll: true,
+              data: urls,
+            };
+            this.createWindow(w);
+          }
+        })
+        .catch(e => {
+          throw e;
+        });
+    },
+    processPermission(allow) {
+      if (allow && this.resolve_permission) {
+        this.resolve_permission();
+        this.resolve_permission = null;
+      } else if (this.reject_permission) {
+        this.reject_permission("Permission Denied!");
+        this.reject_permission = null;
+      } else {
+        console.error("permission handler not found.");
+      }
+    },
+    showDoc(pid) {
+      const plugin = this.pm.plugins[pid];
+      const pconfig = plugin.config;
+      const w = {
+        name: "About " + pconfig.name,
+        type: "imjoy/markdown",
+        w: 20,
+        h: 10,
+        scroll: true,
+        data: {
+          name: pconfig.name,
+          id: plugin.id,
+          plugin_info: pconfig,
+          source: pconfig && pconfig.docs[0] && pconfig.docs[0].content,
+        },
+      };
+      this.createWindow(w);
+    },
+    clearPluginUrl() {
+      const query = Object.assign({}, this.$route.query);
+      // delete query.p;
+      // delete query.plugin;
+      delete query.upgrade;
+      this.$router.replace({ query });
+    },
+    sharePlugin(pid) {
+      const plugin = this.pm.plugins[pid];
+      const pconfig = plugin.config;
+      const url = `${location.protocol}//${location.hostname}${
+        location.port ? ":" + location.port : ""
+      }/#/app/?p=${pconfig.origin}`;
+      this.showAlert(null, {
+        content: `<h3>Sharing "${
+          plugin.name
+        }"</h3> <br> <a style="word-wrap: break-word;" href="${encodeURI(
+          url
+        )}" target="_blank">${url}</a> <br> (Right click on the link and select "Copy Link Address")`,
+      });
+
+      const query = Object.assign({}, this.$route.query);
+      query.p = pconfig.origin;
+      this.$router.replace({ query });
+    },
+    downloadPlugin(pid) {
+      const plugin = this.pm.plugins[pid];
+      const pconfig = plugin.config;
+      const filename = plugin.name + "_" + randId() + ".imjoy.html";
+      const file = new Blob([pconfig.code], {
+        type: "text/plain;charset=utf-8",
+      });
+      saveAs(file, filename);
+    },
+    installPlugin(plugin4install, tag4install) {
+      this.installing = true;
+      this.pm
+        .installPlugin(plugin4install, tag4install)
+        .then(template => {
+          this.showAddPluginDialog = false;
+          this.clearPluginUrl(template);
+          this.$forceUpdate();
+        })
+        .finally(() => {
+          this.installing = false;
+        });
+    },
+    updatePlugin(pid) {
+      const plugin = this.pm.plugins[pid];
+      const pconfig = plugin.config;
+      if (pconfig.origin) {
+        this.showMessage("Fetching plugin file...");
+        this.getPlugin4Install(pconfig.origin)
+          .then(() => {
+            //clear message
+            this.showStatus(null, " ");
+            this.show_plugin_templates = false;
+            this.showAddPluginDialog = true;
+            this.init_plugin_search = null;
+            this.show_plugin_store = false;
+            this.show_plugin_url = false;
+          })
+          .catch(e => {
+            this.showMessage(`Failed to fetch plugin source code (${e}).`);
+            console.error(e);
+          });
+      } else {
+        this.showAlert(null, "Origin not found for this plugin.");
+      }
+    },
+    reloadPlugin(config) {
+      //TODO: this is a temporary fix for the reloading bug, the reloading sometimes causing "RangeError: Maximum call stack size exceeded"
+      this.pm.unloadPlugin(config);
+      this.$nextTick(() => {
+        // disable hot reloading
+        config.hot_reloading = false;
+        this.pm.reloadPlugin(config).finally(() => {
+          this.$forceUpdate();
+        });
+      });
+    },
+    unloadPlugin(plugin) {
+      this.pm.unloadPlugin(plugin);
+    },
+    removePlugin(plugin) {
+      this.showConfirm(null, {
+        title: "Removing Plugin",
+        content: "Do you really want to <strong>delete</strong> this plugin",
+        confirm_text: "Yes",
+      }).then(yes => {
+        if (yes) this.pm.removePlugin(plugin);
+      });
+    },
+    logPlugin(plugin) {
+      console.log(plugin, this.pm, this.em, this.fm);
+    },
+    startTerminal(engine) {
+      engine.startTerminal();
+    },
+    editPlugin(pid) {
+      const plugin = this.pm.plugins[pid];
+      const pconfig = plugin.config;
+      const w = {
+        name: "Edit-" + pconfig.name || "plugin",
+        type: "imjoy/plugin-editor",
+        config: plugin.config,
+        plugin: plugin,
+        plugin_manager: this.pm,
+        engine_manager: this.em,
+        w: 30,
+        h: 20,
+        standalone: this.screenWidth < 1200,
+        data: {
+          name: pconfig.name,
+          id: plugin.id,
+          code: pconfig.code,
+        },
+      };
+      this.createWindow(w);
+    },
+    newPlugin(code) {
+      const w = {
+        name: "New Plugin",
+        type: "imjoy/plugin-editor",
+        config: {},
+        plugin_manager: this.pm,
+        engine_manager: this.em,
+        w: 30,
+        h: 20,
+        standalone: this.screenWidth < 1200,
+        plugin: null,
+        data: {
+          type: "imjoy/code",
+          name: "new plugin",
+          id: "plugin_" + randId(),
+          code: JSON.parse(JSON.stringify(code)),
+        },
+      };
+      this.createWindow(w);
+    },
+    loadFiles(selected_files) {
+      if (selected_files.length === 1) {
+        const file = selected_files[0];
+        const loaders = this.wm.getDataLoaders(file);
+        const keys = Object.keys(loaders);
+        if (keys.length === 1) {
+          try {
+            return loaders[keys[0]](file);
+          } catch (e) {
+            console.error(
+              `Failed to load with the matched loader ${loaders[0]}`,
+              e
+            );
+          }
+        }
+      }
+      for (let f = 0; f < selected_files.length; f++) {
+        const file = selected_files[f];
+        file.loaders = file.loaders || this.wm.getDataLoaders(file);
+      }
+      const w = {
+        name: "Files",
+        type: "imjoy/generic",
+        config: {},
+        select: -1,
+        _op: "__file_loader__",
+        _source_op: null,
+        _workflow_id: "files_" + randId(),
+        _transfer: false,
+        data: selected_files,
+      };
+      this.createWindow(w);
+    },
+    clearWorkflow() {
+      this.workflow_joy_config.data = null;
+      this.$refs.workflow.setupJoy(true);
+    },
+    runWorkflow(joy) {
+      this.status_text = "";
+      this.progress = 0;
+      const w = this.wm.active_windows[this.wm.active_windows.length - 1] || {};
+      const mw = this.pm.plugin2joy(w) || {};
+      mw.target = mw.target || {};
+      mw.target._op = "workflow";
+      mw.target._source_op = null;
+      // mw.target._transfer = true
+      mw.target._workflow_id = mw.target._workflow_id || "workflow_" + randId();
+      joy.workflow.execute(mw.target).catch(e => {
+        console.error(e);
+        this.showMessage(e || "Error.", 12);
+      });
+    },
+    loadWorkflow(w) {
+      this.workflow_joy_config.data = JSON.parse(w.workflow);
+      this.$refs.workflow.setupJoy(true);
+    },
+    loadWorkfowFromUrl() {
+      const data = Joy.decodeWorkflow(this.$route.query.workflow);
+      if (data) {
+        try {
+          this.workflow_expand = true;
+          this.workflow_joy_config.data = JSON.parse(data);
+          this.$nextTick(() => {
+            try {
+              this.$refs.workflow.setupJoy(true);
+              const query = Object.assign({}, this.$route.query);
+              delete query.workflow;
+              this.$router.replace({ query });
+            } catch (e) {
+              console.error(e);
+              this.showMessage("Failed to load workflow: " + e);
+            }
+          });
+        } catch (e) {
+          console.error(e);
+          this.showMessage("Failed to parse workflow: " + e);
+        }
+      } else {
+        console.log("failed to workflow");
+      }
+    },
+    shareWorkflow(w) {
+      const url = Joy.encodeWorkflow(w.workflow);
+      this.showAlert(null, {
+        content: `<h3>Sharing Workflow</h3><a style="word-wrap: break-word;" href="${
+          location.protocol
+        }//${location.hostname}${
+          location.port ? ":" + location.port : ""
+        }/#/app/?workflow=${url}" target="_blank">${location.protocol}//${
+          location.hostname
+        }${
+          location.port ? ":" + location.port : ""
+        }/#/app/?workflow=${url}</a><br> (Right click on the link and select "Copy Link Address")`,
+      });
+    },
+    runOp(op) {
+      if (!op || !op.name) {
+        throw "op not found.";
+      }
+      this.status_text = "";
+      this.progress = 0;
+      let mw;
+      // for performance concerns, we need to have `type` in the data
+      if (op.inputs_schema) {
+        const w =
+          this.wm.active_windows[this.wm.active_windows.length - 1] || {};
+        if (w.data && op.inputs_schema(w.data)) {
+          mw = this.pm.plugin2joy(w) || {};
+        } else {
+          mw = {};
+        }
+      } else {
+        mw = {};
+      }
+      mw.target = mw.target || {};
+      mw.target._op = op.name;
+      mw.target._source_op = null;
+      // mw.target._transfer = true
+      mw.target._workflow_id =
+        mw.target._workflow_id ||
+        "op_" + op.name.trim().replace(/ /g, "_") + randId();
+      op.joy.__op__
+        .execute(mw.target)
+        .then(my => {
+          const w = this.pm.joy2plugin(my);
+          if (w && !my._rintf) {
+            w.name = w.name || "result";
+            w.type = w.type || "imjoy/generic";
+            this.createWindow(w);
+          }
+          this.progress = 100;
+        })
+        .catch(e => {
+          this.showMessage("<" + op.name + ">" + (e || "Error."), 15);
+        });
+
+      if (this.screenWidth <= 800) {
+        this.menuVisible = false;
+      }
+    },
+    selectFileChanged(event) {
+      // console.log(event.target.files)
+      this.selected_file = event.target.files[0];
+      this.selected_files = event.target.files;
+      //normalize relative path
+      for (let i = 0; i < event.target.files.length; i++) {
+        const file = event.target.files[i];
+        file._path = file.webkitRelativePath;
+        file.loaders = this.wm.getDataLoaders(file);
+      }
+      this.loadFiles(this.selected_files);
+    },
+
+    //#################ImJoy API functions##################
+    showSnackbar(_plugin, msg, duration) {
+      msg = String(msg);
+      this.snackbar_info = msg;
+      if (duration) {
+        duration = duration * 1000;
+      }
+      this.snackbar_duration = duration || 10000;
+      this.show_snackbar = true;
+      this.$forceUpdate();
+    },
+    async showFileDialog(_plugin, config) {
+      config = config || {};
+      let _return_array = true;
+      if (_plugin && _plugin.id) {
+        if (!config.file_manager) {
+          if (_plugin.api.FILE_MANAGER_URL) {
+            config.file_manager = this.fm.getFileManagerByUrl(
+              _plugin.api.FILE_MANAGER_URL
+            );
+          }
+        } else {
+          if (typeof config.file_manager === "string")
+            config.file_manager = this.fm.getFileManagerByUrl(
+              config.file_manager
+            );
+        }
+        // assert(config.file_manager, "No file manager is selected.");
+        config.root =
+          config.root || (_plugin.config && _plugin.config.work_dir);
+
+        config.uri_type = config.uri_type || "path";
+        if (config.root && typeof config.root !== "string") {
+          throw "You need to specify a root with string type ";
+        }
+        //TODO: remove this in the future
+        if (
+          _plugin.config.api_version &&
+          utils.compareVersions(_plugin.config.api_version, "<=", "0.1.3")
+        ) {
+          config.return_object =
+            config.return_object === undefined ? false : config.return_object;
+        } else {
+          config.return_object =
+            config.return_object === undefined ? true : config.return_object;
+        }
+
+        //TODO: remove this in the future
+        if (
+          _plugin.config.api_version &&
+          utils.compareVersions(_plugin.config.api_version, "<", "0.1.8")
+        ) {
+          _return_array = false;
+        }
+      }
+      let ret;
+
+      if (
+        _return_array &&
+        config.file_manager &&
+        config.file_manager.api.showFileDialog
+      ) {
+        ret = await config.file_manager.showFileDialog(config);
+      } else {
+        if (config.file_manager && config.hide_unselected) {
+          this.selected_file_managers = [config.file_manager];
+        } else {
+          this.selected_file_managers = this.fm.fileManagers;
+        }
+        ret = await this.$refs["file-dialog"].showDialog(_plugin, config);
+      }
+
+      if (_return_array) {
+        if (!ret) return [];
+        else if (!Array.isArray(ret)) return [ret];
+        else return ret;
+      }
+      return ret;
+    },
+    uploadFileToUrl(_plugin, config) {
+      if (typeof config !== "object" || !config.file || !config.url) {
+        throw "You must pass an object contains keys named `file` and `url`";
+      }
+      console.warn(
+        "WARNING: api.uploadFileToUrl is deprecated and it will be removed soon."
+      );
+      _plugin = _plugin || {};
+      return new Promise((resolve, reject) => {
+        const bodyFormData = new FormData();
+        bodyFormData.append(
+          "file",
+          new Blob([config.file], {
+            type: config.file.type || "application/octet-stream",
+          })
+        );
+        this.showMessage("Uploading a file to " + config.url);
+        let totalLength = null;
+        axios({
+          method: "post",
+          url: config.url,
+          data: bodyFormData,
+          headers: config.headers || { "Content-Type": "multipart/form-data" },
+          onUploadProgress: progressEvent => {
+            totalLength =
+              totalLength || progressEvent.lengthComputable
+                ? progressEvent.total
+                : progressEvent.target.getResponseHeader("content-length") ||
+                  progressEvent.target.getResponseHeader(
+                    "x-decompressed-content-length"
+                  );
+            if (totalLength !== null) {
+              const p = (progressEvent.loaded * 100) / totalLength;
+              if (parseInt(p) % 5 == 0) {
+                this.showProgress(null, p);
+                this.$forceUpdate();
+              }
+            }
+            if (config.progress) {
+              config.progress(progressEvent.loaded, totalLength);
+            }
+          },
+        })
+          .then(response => {
+            if (response.status !== 200) {
+              console.error(response);
+              reject(response.statusText);
+            } else {
+              this.showMessage(`File uploaded to ${config.url}`);
+              if (_plugin.log) _plugin.log(`File uploaded to ${config.url}`);
+              resolve(response.data);
+            }
+          })
+          .catch(response => {
+            this.showMessage(
+              `Failed to upload files, error: ${response.status}`
+            );
+            console.error(response);
+            reject(response.status);
+          });
+      });
+    },
+    downloadFileFromUrl(_plugin, config) {
+      if (typeof config !== "object" || !config.url) {
+        throw "You must pass an object contains keys named `url`";
+      }
+      console.warn(
+        "WARNING: api.uploadFileToUrl is deprecated and it will be removed soon."
+      );
+      return new Promise((resolve, reject) => {
+        this.showMessage("Downloading from " + config.url);
+        let totalLength = null;
+        axios
+          .get({
+            url: config.url,
+            method: config.method || "GET",
+            responseType: config.responseType || "blob",
+            onDownloadProgress: progressEvent => {
+              totalLength =
+                totalLength || progressEvent.lengthComputable
+                  ? progressEvent.total
+                  : progressEvent.target.getResponseHeader("content-length") ||
+                    progressEvent.target.getResponseHeader(
+                      "x-decompressed-content-length"
+                    );
+              if (totalLength !== null) {
+                const p = (progressEvent.loaded * 100) / totalLength;
+                if (parseInt(p) % 5 == 0) {
+                  this.showProgress(null, p);
+                  this.$forceUpdate();
+                }
+              }
+              if (config.progress) {
+                config.progress(progressEvent.loaded, totalLength);
+              }
+            },
+          })
+          .then(response => {
+            if (response.status !== 200) {
+              console.error(response);
+              reject(response.statusText);
+            } else {
+              this.showMessage(`File downloaded from ${config.url}`);
+              resolve(response.data);
+            }
+          })
+          .catch(response => {
+            this.showMessage(
+              `Failed to download files, error: ${response.statusText}`
+            );
+            console.error(response);
+            reject(response.statusText);
+          });
+      });
+    },
+    showProgress(_plugin, p) {
+      if (p < 1) this.progress = p * 100;
+      else this.progress = p;
+    },
+    showStatus(_plugin, s) {
+      this.status_text = String(s);
+
+      // fallback to showMessage on small screen
+      if (this.screenWidth < 500) {
+        this.showMessage(s);
+      }
+    },
+    showDialog(_plugin, cfg, extra_cfg) {
+      let config = {};
+      if (typeof cfg === "string") {
+        if (
+          cfg.includes("\n") ||
+          /(http(s?)):\/\//i.test(cfg) ||
+          (cfg.includes("/") && cfg.includes(":"))
+        ) {
+          config = { src: cfg };
+        } else config = { type: cfg };
+      } else {
+        config = cfg;
+      }
+      if (extra_cfg) {
+        config = Object.assign(config, extra_cfg);
+      }
+      config.dialog = true;
+      return new Promise((resolve, reject) => {
+        const _selectedWindow = this.wm.selected_window;
+        this.pm
+          .createWindow(_plugin, config)
+          .then(api => {
+            config.api.on(
+              "window_size_changed",
+              rect => {
+                config.dialog_height = `${rect.height + 40}px`;
+                this.$forceUpdate();
+              },
+              true
+            );
+            config.api.on("close", () => {
+              this.closeWindowDialog(config);
+              if (_selectedWindow) this.wm.selectWindow(_selectedWindow);
+            });
+
+            if (config.type === "imjoy/joy") {
+              config.ok = () => {
+                this.closeWindowDialog(config);
+                resolve(config.get_config());
+              };
+              config.cancel = () => {
+                this.closeWindowDialog(config);
+                resolve();
+              };
+            } else {
+              resolve(api);
+            }
+          })
+          .catch(e => {
+            this.showAlert(null, e);
+            this.closeWindowDialog(config);
+            if (_selectedWindow) this.wm.selectWindow(_selectedWindow);
+            reject(e);
+          });
+      });
+    },
+    async hideWindowDialog(w) {
+      if (this.selected_dialog_window === w) {
+        this.$modal.hide("window-modal-dialog");
+      }
+    },
+    async closeWindowDialog(w) {
+      if (this.selected_dialog_window === w) {
+        this.selected_windows_stack.pop();
+        this.selected_dialog_window = this.selected_windows_stack[
+          this.selected_windows_stack.length - 1
+        ];
+        if (!this.selected_dialog_window) {
+          if (w.fullscreen) {
+            this.normalWindowDialog(w);
+          }
+          this.$modal.hide("window-modal-dialog");
+        } else {
+          if (this.selected_dialog_window.fullscreen) {
+            this.fullscreenWindowDialog(this.selected_dialog_window);
+          } else {
+            this.normalWindowDialog(this.selected_dialog_window);
+          }
+        }
+      }
+
+      if (w.close && !w.closing) {
+        w.closing = true;
+        await w.close();
+      }
+    },
+    fullscreenWindowDialog(w) {
+      this.wm.selectWindow(w);
+      w.fullscreen = true;
+      if (this.selected_dialog_window === w) {
+        this.dialog_window_config.fullscreen = true;
+        this.$forceUpdate();
+      }
+    },
+    normalWindowDialog(w) {
+      // disable normal view on small screen
+      if (this.screenWidth < 600) {
+        return;
+      }
+      this.wm.selectWindow(w);
+      w.fullscreen = false;
+      if (this.selected_dialog_window === w) {
+        this.dialog_window_config.fullscreen = false;
+        this.$forceUpdate();
+      }
+    },
+    showAlert(_plugin, text) {
+      console.log("alert: ", text);
+      if (typeof text === "string") {
+        this.alert_config.title = null;
+        this.alert_config.content = escapeHTML(text).replace(/\n/g, "<br>");
+        this.alert_config.confirm_text = "OK";
+      } else if (typeof text === "object" && text.content) {
+        this.alert_config.title = text.title;
+        this.alert_config.content =
+          DOMPurify.sanitize(String(text.content)) || "undefined";
+        this.alert_config.confirm_text = text.confirm_text || "OK";
+      } else {
+        this.alert_config.content = String(text);
+      }
+
+      this.alert_config.show = true;
+      this.$forceUpdate();
+      //alert(text);
+    },
+    showPrompt(_plugin, text, defaultText) {
+      return new Promise((resolve, reject) => {
+        if (typeof text === "string") {
+          this.prompt_config.title = null;
+          this.prompt_config.content = escapeHTML(text).replace(/\n/g, "<br>");
+          this.prompt_config.placeholder = defaultText;
+          this.prompt_config.cancel_text = "Cancel";
+          this.prompt_config.confirm_text = "OK";
+        } else if (typeof text === "object" && text.content) {
+          this.prompt_config.title = text.title;
+          this.prompt_config.content =
+            DOMPurify.sanitize(String(text.content)) || "undefined";
+          this.prompt_config.placeholder = text.placeholder || null;
+          this.prompt_config.cancel_text = text.cancel_text || "Cancel";
+          this.prompt_config.confirm_text = text.confirm_text || "OK";
+        } else {
+          reject("unsupported prompt arguments");
+          throw "unsupported prompt arguments";
+        }
+        this.prompt_config.confirm = () => {
+          resolve(this.prompt_config.value || this.prompt_config.placeholder);
+        };
+        this.prompt_config.cancel = () => {
+          reject();
+        };
+        this.prompt_config.show = true;
+      });
+      //return prompt(text, defaultText);
+    },
+    showConfirm(_plugin, text) {
+      return new Promise((resolve, reject) => {
+        if (typeof text === "string") {
+          this.confirm_config.title = null;
+          this.confirm_config.content = escapeHTML(text).replace(/\n/g, "<br>");
+          this.confirm_config.cancel_text = "Cancel";
+          this.confirm_config.confirm_text = "OK";
+        } else if (typeof text === "object" && text.content) {
+          this.confirm_config.title = text.title;
+          this.confirm_config.content =
+            DOMPurify.sanitize(String(text.content)) || "undefined";
+          this.confirm_config.cancel_text = text.cancel_text || "Cancel";
+          this.confirm_config.confirm_text = text.confirm_text || "OK";
+        } else {
+          reject("unsupported prompt arguments");
+          throw "unsupported prompt arguments";
+        }
+        this.confirm_config.confirm = () => {
+          resolve(true);
+        };
+        this.confirm_config.cancel = () => {
+          resolve(false);
+        };
+        this.confirm_config.show = true;
+      });
+      //return confirm(text);
+    },
+    showLog(_plugin) {
+      const w = {
+        name: `Log (${_plugin.name})`,
+        type: "imjoy/log",
+        data: {
+          plugin_id: _plugin.id,
+          plugin_name: _plugin.name,
+          log_history: _plugin._log_history,
+        },
+      };
+      this.createWindow(w);
+    },
+    openUrl(_plugin, url) {
+      assert(url);
+      Object.assign(document.createElement("a"), {
+        target: "_blank",
+        href: url,
+      }).click();
+    },
+    sleep(_plugin, seconds) {
+      assert(seconds);
+      return new Promise(resolve =>
+        setTimeout(resolve, Math.round(seconds * 1000))
+      );
+    },
+  },
+};
+</script>
+
+<!-- Add "scoped" attribute to limit CSS to this component only -->
+<style scoped>
+.site-title {
+  height: 65px;
+}
+
+.app-toolbar {
+  background-color: #d7e5fd52 !important;
+}
+
+@media screen and (max-height: 768px) {
+  .site-title {
+    height: 55px;
+  }
+}
+
+.site-title-small {
+  display: inline-block;
+  height: 55px;
+}
+
+@media screen and (max-height: 768px) {
+  .site-title-small {
+    height: 36px;
+  }
+}
+
+.subheader-title {
+  font-size: 16px;
+  font-weight: 500;
+  margin-top: 10px;
+  text-transform: none;
+}
+
+.subheader-emoji {
+  font-size: 20px;
+  font-weight: 500;
+  text-transform: none;
+}
+.superscript {
+  font-size: 16px;
+  text-transform: none;
+  vertical-align: super;
+  color: #ff5253;
+}
+
+.md-empty-state {
+  height: 100%;
+  width: 100%;
+}
+
+.md-content {
+  overflow-x: hidden;
+}
+
+.imjoy {
+  height: 100%;
+}
+
+.plugin-dialog {
+  width: 80%;
+  max-width: 800px;
+  max-height: 90%;
+}
+
+@media screen and (max-width: 400px) {
+  .md-dialog {
+    width: 99% !important;
+    max-height: 100%;
+    max-width: 100%;
+  }
+}
+
+@media screen and (max-width: 700px) {
+  .plugin-dialog {
+    width: 99% !important;
+    max-width: 100% !important;
+  }
+}
+
+@media screen and (max-width: 800px) {
+  .window-dialog {
+    max-width: 99%;
+  }
+
+  .api-dialog {
+    max-width: 99%;
+    max-height: 99%;
+  }
+}
+
+@media screen and (min-height: 500px) {
+  #engine-file-dialog {
+    min-height: 400px !important;
+  }
+}
+
+#engine-file-dialog {
+  z-index: 12 !important;
+  max-width: 100%;
+  width: 700px;
+}
+
+.api-dialog {
+  width: 500px;
+  z-index: 13 !important;
+}
+
+#api-snackbar {
+  z-index: 9999 !important;
+}
+
+@media screen and (max-height: 900px) {
+  .plugin-dialog {
+    max-height: 100%;
+  }
+}
+
+@media screen and (max-height: 700px) {
+  .window-dialog {
+    height: 100% !important;
+    min-height: 100%;
+  }
+}
+
+.window-dialog {
+  margin: 0px;
+  min-width: 200px;
+  min-height: 500px;
+  width: 100%;
+  height: 100%;
+  max-width: 1000px;
+  max-height: 900px;
+}
+
+.window-dialog-container {
+  height: 100%;
+  width: 100%;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 11 !important;
+}
+
+.md-card {
+  /* width: 100%; */
+  /* height: 300px; */
+  margin-bottom: 20px;
+}
+
+.whiteboard-content {
+  padding: 0px;
+}
+
+.panel-header {
+  padding-left: 20px;
+  height: 40px;
+  min-height: 20px;
+}
+
+.panel-title {
+  font-size: 1.4em;
+}
+
+/* The sticky class is added to the header with JS when it reaches its scroll position */
+
+.sticky {
+  position: fixed;
+  top: 0;
+  width: 100%;
+}
+
+/* Add some top padding to the page content to prevent sudden quick movement (as the header gets a new position at the top of the page (position:fixed and top:0) */
+
+.sticky + .content {
+  padding-top: 102px;
+}
+
+.error-message {
+  color: red !important;
+  user-select: text;
+}
+
+.speed-dial {
+  top: 8px !important;
+  left: 15px !important;
+}
+
+button.md-speed-dial-target {
+  background: white !important;
+}
+
+.speed-dial-icon {
+  color: rgba(0, 0, 0, 0.87) !important;
+}
+
+.md-speed-dial-content {
+  left: 40px !important;
+  top: -17px !important;
+  display: flex;
+  flex-direction: row;
+}
+
+.site-button {
+  left: 10px;
+  top: 6px;
+}
+
+.fullscreen {
+  max-width: 100%;
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+}
+
+.menubar-icons {
+  display: inline-flex;
+  position: absolute;
+  right: 0;
+  background-color: #ffffff00;
+  z-index: 1;
+}
+
+.status-text {
+  color: #0060ff;
+  font-size: 0.95em;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  text-transform: none;
+  overflow: hidden;
+  display: inline-block;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: calc(100vw - 300px);
+}
+.md-snackbar {
+  bottom: 0px !important;
+}
+@media screen and (max-width: 700px) {
+  .md-snackbar {
+    padding: 10px;
+  }
+  .md-snackbar-content > button {
+    height: 32px !important;
+  }
+}
+.md-snackbar-content {
+  overflow: hidden;
+  max-width: 680px;
+}
+.md-snackbar-content > button {
+  position: absolute;
+  right: 12px;
+  bottom: calc(50% - 12px) !important;
+  background-color: rgba(10, 10, 10, 1);
+}
+
+.md-snackbar-content > span {
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 100%;
+  text-overflow: ellipsis;
+}
+
+.centered-button {
+  text-align: center;
+  text-transform: none;
+}
+
+.md-button {
+  margin: 1px;
+}
+
+.busy-plugin {
+  color: orange !important;
+}
+
+.code-editor {
+  height: 500px;
+}
+
+.op-button {
+  font-weight: 300;
+}
+
+.md-icon-button {
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+}
+
+.md-drawer {
+  overflow: hidden;
+}
+
+#plugin-menu {
+  height: 100%;
+  max-height: calc(100vh - 95px);
+  padding: 4px 10px;
+}
+
+#plugin-menu > .md-card-content {
+  max-height: calc(100vh - 95px - 66px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-top: 5px;
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+@media screen and (max-width: 700px) {
+  #plugin-menu > .md-card-content {
+    padding-left: 0px;
+    padding-right: 0px;
+  }
+  #plugin-menu {
+    padding: 2px 5px;
+  }
+}
+
+#plugin-menu > .md-card-header {
+  justify-content: space-between;
+  display: flex;
+}
+
+@media screen and (max-height: 900px) {
+  #plugin-menu > .md-card-header {
+    padding: 5px;
+    height: 38px;
+  }
+}
+
+#plugin-menu > .md-button {
+  padding: 2px;
+}
+
+#workflow-panel {
+  margin-bottom: 2px;
+}
+
+#workflow-panel > p {
+  text-align: center;
+  margin-top: 10px;
+  margin: 5px;
+}
+
+.joy-run-button {
+  width: calc(100% - 128px);
+  text-transform: none;
+  font-size: 1.2em;
+}
+
+@media screen and (max-width: 600px) {
+  .joy-run-button {
+    width: calc(100% - 112px) !important;
+    text-transform: none;
+    font-size: 1.2em;
+  }
+}
+
+@media screen and (max-width: 400px) {
+  .joy-run-button {
+    width: calc(100% - 80px) !important;
+    text-transform: none;
+    font-size: 1.2em;
+  }
+}
+
+@media screen and (max-width: 600px) {
+  .md-icon-button {
+    width: 32px;
+    min-width: 32px;
+    height: 32px;
+  }
+  .md-drawer {
+    width: 320px;
+  }
+  .h2,
+  h2 {
+    font-size: 1rem;
+  }
+}
+
+@media screen and (max-width: 600px) {
+  .md-card-content {
+    padding: 8px !important;
+  }
+
+  .md-list-item-content {
+    padding: 4px 4px !important;
+  }
+}
+
+.md-app {
+  height: 100%;
+}
+
+.md-app-content {
+  height: calc(100%);
+}
+
+.normal-text {
+  text-transform: none;
+}
+
+.red {
+  display: inline-block;
+  color: #f44336 !important;
+  transition: 0.3s;
+}
+
+.bold {
+  font-weight: bold;
+}
+
+.carousel .carousel-nav .nav-item {
+  color: rgba(5, 142, 255, 0.5);
+}
+.carousel .carousel-nav .nav-item::before {
+  height: 0.15rem;
+}
+
+.file-dropping {
+  background: #cad8ef !important;
+}
+
+.md-list-item-content > .md-icon:last-child {
+  margin-left: 1px !important;
+}
+
+.md-list-item-content > .md-icon:first-child {
+  margin-right: 15px !important;
+}
+
+.md-toolbar {
+  height: 58px !important;
+}
+
+@media screen and (max-height: 786px) {
+  .md-toolbar {
+    height: 42px !important;
+  }
+}
+
+.title-bar {
+  margin-bottom: 10px;
+}
+
+.normal-dialog {
+  max-width: 100%;
+  max-height: 100%;
+  min-height: 80px;
+  min-width: 100px;
+  margin: 0;
+  padding: 0;
+  flex-grow: 1;
+  border: none;
+}
+
+.fullscreen-dialog {
+  max-width: 100%;
+  max-height: 100%;
+  min-width: 100%;
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
+  flex-grow: 1;
+  border: none;
+}
+
+.position-relative {
+  position: relative;
+}
+
+.window-dialog-container-position {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+}
+
+.floating-right-buttons {
+  display: inline-block;
+  margin-left: auto;
+  margin-right: 0;
+}
+
+.non-runnable-btn {
+  color: rgba(113, 78, 179, 0.66) !important;
+}
+</style>

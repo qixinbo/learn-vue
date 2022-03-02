@@ -50,7 +50,7 @@ export default{
     name: 'home',
     data () {
         return {
-            userImg: require('../assets/logo.png'),
+            userImg: require('../assets/visLCA.png'),
             tableData:[],
             tableLabel:{
                 name: '课堂',

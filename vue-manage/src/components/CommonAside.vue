@@ -51,7 +51,7 @@
           {
             path: '/mall',
             name: 'mall',
-            label: '商品管理',
+            label: '结果管理',
             icon: 'video-play',
             url: 'MallManage/MallManage'
           },
@@ -63,7 +63,7 @@
             url: 'UserManage/UserManage'
           },
           {
-            label: '其他',
+            label: 'BOM列表',
             icon: 'location',
             children: [
               {
