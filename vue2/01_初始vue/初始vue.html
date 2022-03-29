@@ -7,8 +7,19 @@
 	<title>hello vue</title>
 </head>
 <body>
+
+	<div id="root">
+		<h1>Hello {{ name }}</h1> // {{}}是插值对象
+	</div>
+
 	<script type="text/javascript">
 		Vue.config.productionTip = false
+		const x = new Vue({ // 传参是配置对象
+			el: '#root', // 指定作用到哪个容器上，通常使用css选择器
+			data: { // data 先写成对象的形式，后面应该是函数的形式
+				name: 'mmq'
+			}
+		}) 
 	</script>
 </body>
 </html>
