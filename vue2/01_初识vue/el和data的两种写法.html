@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<script type="text/javascript" src="../js/vue.js"></script>
+	<title>hello vue</title>
+</head>
+<body>
+	<div id="root">
+		<h1>hello {{name}}</h1>
+	</div>
+
+	<script type="text/javascript">
+		Vue.config.productionTip = false
+		const v = new Vue({ 
+			// el: '#root', 
+			// data的对象式写法
+			// data: { 
+			// 	name: 'mmq',
+			// 	url: "http://www.bing.com"
+			// }
+			// data的函数式写法，写组件时一定要用函数式
+			// ！！！不能写成箭头函数，因为箭头函数没有this，里面的this是Window
+			// data: function(){
+			// 	// this是Vue实例
+			// 	console.log("----", this)
+			// 	return{
+			// 		name: 'adm'
+			// 	}
+			// }
+			// 函数式的简写：
+			data(){
+				return{
+					name: 'adm'
+				}
+			}
+
+		}) 
+		// 输出Vue实例对象
+		// 实例的属性中带$符的都是给程序员使用的
+		console.log(v)
+		// 调用Vue实例的原型的$mount函数
+		// 这种方法更灵活，可以在后面将Vue实例与容器连接起来
+		v.$mount('#root')
+
+
+
+	</script>
+</body>
+</html>

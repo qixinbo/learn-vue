@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<script type="text/javascript" src="../js/vue.js"></script>
+	<title>Object.defineProperty</title>
+</head>
+<body>
+	<div id="root">
+	</div>
+
+	<!-- vue中的数据代理就是将vue的_data里的属性通过代理直接放到了vue实例vm中，与_data平齐。 -->
+	<!-- 为每一个添加到vm中的属性，都指定一个getter和setter -->
+	<!-- 通过getter和setter操作_data中的属性 -->
+	<!-- 这个getter和setter是在vm中，与_data平齐 -->
+	<!-- _data中也有getter和setter不是数据代理，而是数据劫持，为了实现响应式。 -->
+
+	<script type="text/javascript">
+
+		// 数据代理：通过一个对象代理对另一个对象中的属性的操作
+		let obj = {x: 100}
+		let obj2 = {y: 200}
+
+		Object.defineProperty(obj2, 'x', {
+			get() {
+				return obj.x
+			},
+			// 当有人修改age属性且值是value时，set函数（setter）被调用
+			set(value){
+				obj.x = value
+			}
+		})
+	</script>
+</body>
+</html>

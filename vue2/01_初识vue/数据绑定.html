@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<script type="text/javascript" src="../js/vue.js"></script>
+	<title>hello vue</title>
+</head>
+<body>
+	<div id="root">
+		<!-- v-bind单向绑定 -->
+		单向数据绑定：<input type="text" :value="name">
+		<br/>
+		<!-- v-model实现双向绑定 -->
+		<!-- v-model只能用于表单类元素上，即输入类元素上，即有value值，比如不能应用于h1这类元素上 -->
+		<!-- input、select、单选框、多选框、多行输入都是输入类元素，都有value值 -->
+		双向数据绑定：<input type="text" v-model:value="name">
+		<br/>
+		<!-- v-model:value简写为v-model，因为v-model默认收集value值 -->
+		简写双向数据绑定：<input type="text" v-model="name">
+	</div>
+
+	<script type="text/javascript">
+		Vue.config.productionTip = false
+		const x = new Vue({ // 传参是配置对象
+			el: '#root', // 指定作用到哪个容器上，通常使用css选择器
+			data: { // data 先写成对象的形式，后面应该是函数的形式
+				name: 'mmq',
+				url: "http://www.bing.com"
+			}
+		}) 
+	</script>
+</body>
+</html>
