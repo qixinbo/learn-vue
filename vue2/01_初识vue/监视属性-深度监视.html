@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<script type="text/javascript" src="../js/vue.js"></script>
+	<title>hello vue</title>
+</head>
+<body>
+	<div id="root">
+		<h1>今天天气为 {{ info }}</h1>
+		<button @click="changeWeather">切换天气</button>
+		<br/>
+		<h1>a的值是：{{ numbers.a }}</h1>
+		<button @click="numbers.a++">点我增加a</button>
+	</div>
+
+	<script type="text/javascript">
+		Vue.config.productionTip = false
+		const vm = new Vue({ 
+			el: '#root', 
+			data: { 
+				isHot: true,
+				numbers:{
+					a: 1,
+					b: 1,
+				}
+			},
+			computed:{
+				info(){
+					return this.isHot ? "炎热" : "凉爽"
+				}
+			},
+			methods:{
+				changeWeather(){
+					this.isHot = !this.isHot
+				}
+			},
+			watch:{
+				// isHot:{
+				// 	handler(newValue, oldValue){
+				// 		console.log("modify isHot", newValue, oldValue)
+				// 	},
+				// },
+
+				//只有handler配置时，可以简写
+				isHot(newValue, oldValue){
+					console.log("ishot modified")
+				},
+				// 监视多级结构中某个属性的变化
+				'numbers.a':{
+					handler(){
+						console.log("a changed")
+					}
+				},
+				// Vue本身能监视多层级，但watch这个对象默认不行，得配置一下deep
+				'numbers':{
+					deep:true,
+					handler(){
+						console.log("numbers changed")
+					}
+				}
+			}
+
+		})
+
+		vm.$watch("isHot", function(newValue, oldValue) {
+			console.log("------------ isHot modified")
+		})
+
+	</script>
+</body>
+</html>

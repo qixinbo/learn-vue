@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<script type="text/javascript" src="../js/vue.js"></script>
+	<title>hello vue</title>
+</head>
+<body>
+	<div id="root">
+		<input type="text" placeholder="请输入名字" v-model="keyword">
+		<ul>
+			<li v-for="(person, index) in filPerson" :key="person.id">
+				{{person.id}} - {{person.name}} - {{index}}
+			</li>
+		</ul>
+
+	</div>
+	<script type="text/javascript">
+		Vue.config.productionTip = false
+		const x = new Vue({
+			el: '#root', 
+			data: {
+				keyword: '',
+				persons:[
+				{
+					id: '001',
+					name: "马冬梅"
+				},
+				{
+					id: '002',
+					name: "周冬雨"
+				},
+				{
+					id: '003',
+					name: "周杰伦"
+				},
+				],
+				// filPerson:[]
+			},
+			// // watch的写法
+			// watch:{
+			// 	keyword:{
+			// 		// 必须得immediate，要不起始没有值
+			// 		immediate: true,
+			// 		handler(newValue){
+			// 		this.filPerson = this.persons.filter(
+			// 			(p) => {
+			// 				return p.name.indexOf(newValue) !== -1
+			// 			}
+			// 		)
+			// 		}
+			// 	}
+			// }
+			computed:{
+				filPerson(){
+					return this.persons.filter(
+			 			(p) => {
+			 				return p.name.indexOf(this.keyword) !== -1
+			 			}
+			 		)
+				}
+			}
+		}) 
+	</script>
+</body>
+</html>

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<script type="text/javascript" src="../js/vue.js"></script>
+	<title>hello vue</title>
+</head>
+<body>
+	<div id="root">
+		<h1>今天天气为 {{ info }}</h1>
+		<button @click="changeWeather">切换天气</button>
+	</div>
+
+	<script type="text/javascript">
+		Vue.config.productionTip = false
+		const vm = new Vue({ 
+			el: '#root', 
+			data: { 
+				isHot: true
+			},
+			computed:{
+				info(){
+					return this.isHot ? "炎热" : "凉爽"
+				}
+			},
+			methods:{
+				changeWeather(){
+					this.isHot = !this.isHot
+				}
+			},
+
+			// watch对象中能进行异步操作，但computed不行
+			// ！！！！Vue所管理的函数最好写成普通函数，
+			// ！！！！而Vue不管理的最好写成箭头函数，因为箭头函数没有this，它会往上找，这样this仍然指向的是Vue实例
+
+			// 监视对象的第一种写法
+			// watch:{
+			// 	isHot:{
+			// 		// 当isHot变化时，handler被调用
+			// 		handler(newValue, oldValue){
+			// 			console.log("modify isHot", newValue, oldValue)
+			// 		},
+			// 		// 初始化后让handler调用一下
+			// 		immediate: true,
+			// 	}
+			// }
+
+		})
+		// 监视对象的第二种写法，注意isHot是字符串写法
+		vm.$watch('isHot', {
+			handler(newValue, oldValue){
+				console.log("modify isHot", newValue, oldValue)
+			},
+			immediate: true,
+		}) 
+	</script>
+</body>
+</html>

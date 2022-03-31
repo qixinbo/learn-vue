@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<script type="text/javascript" src="../js/vue.js"></script>
+	<title>hello vue</title>
+</head>
+<body>
+	<div id="root">
+		姓：<input type="text" v-model="lastname">
+		<br/>
+		名：<input type="text" v-model="firstname">
+		<br/>
+		通过methods计算姓名：<span>{{ fullName() }}</span>
+		<br/>
+		通过计算属性计算姓名：<span>{{ fullName2 }}</span>
+		<br/>
+		简写计算属性计算姓名：<span>{{ fullName3 }}</span>
+	</div>
+
+	<script type="text/javascript">
+		Vue.config.productionTip = false
+		const vm = new Vue({ 
+			el: '#root', 
+			data: { 
+				firstname: '三',
+				lastname: "张"
+			},
+
+			methods:{
+				fullName(event){
+					return this.lastname + '-' + this.firstname
+				}
+			},
+			// computed是根据已有的属性而计算得到
+			// computed计算属性有缓存机制，而methods没有缓存
+			computed:{
+				// 完全写法
+				fullName2:{
+					// 当有人读取fullName2时，get就被调用
+					// get调用的时机：（1）初次读取时（2）所依赖的数据发生变化时。
+					get(){
+						console.log(this)
+						return this.lastname + '-' + this.firstname
+					},
+					// set是当fullName2被修改时调用
+					set(value){
+						const arr = value.split('-')
+						this.lastname = arr[0]
+						this.firstname = arr[1]
+					}
+				},
+
+
+				// 当确定不需要setter时，就可以用简写
+				fullName3(){
+						console.log(this)
+						return this.lastname + '-' + this.firstname
+					}
+				
+
+			}
+		}) 
+	</script>
+</body>
+</html>

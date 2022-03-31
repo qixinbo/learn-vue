@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<script type="text/javascript" src="../js/vue.js"></script>
+	<title>hello vue</title>
+</head>
+<body>
+	<div id="root">
+		<input type="text" placeholder="请输入名字" v-model="keyword">
+		<button @click="sortType = 2">年龄升序</button>
+		<button @click="sortType = 1">年龄降序</button>
+		<button @click="sortType = 0">年龄原来顺序</button>
+		<ul>
+			<li v-for="(person, index) in filPerson" :key="person.id">
+				{{person.id}} - {{person.name}} - {{person.age}}
+			</li>
+		</ul>
+
+	</div>
+	<script type="text/javascript">
+		Vue.config.productionTip = false
+		const x = new Vue({
+			el: '#root', 
+			data: {
+				keyword: '',
+				sortType: 0,
+				persons:[
+					{
+						id: '001',
+						name: "马冬梅",
+						age: 45
+					},
+					{
+						id: '002',
+						name: "周冬雨",
+						age: 28
+					},
+					{
+						id: '003',
+						name: "周杰伦",
+						age: 32
+					},
+				],
+			},
+
+			computed:{
+				filPerson(){
+					const arr = this.persons.filter(
+			 			(p) => {
+			 				return p.name.indexOf(this.keyword) !== -1
+			 			}
+			 		)
+			 		if(this.sortType !== 0){
+			 			arr.sort(
+			 				(p1, p2) => {
+			 					return this.sortType === 1 ? p2.age-p1.age : p1.age-p2.age
+			 				}
+			 				
+			 			)
+			 		}
+			 		return arr
+				}
+			}
+		}) 
+	</script>
+</body>
+</html>

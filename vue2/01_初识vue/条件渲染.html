@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<script type="text/javascript" src="../js/vue.js"></script>
+	<title>hello vue</title>
+</head>
+<body>
+	<div id="root">
+		<!-- 使用v-show条件渲染 -->
+		<!-- v-show节点还在，只是控制display=none来隐藏 -->
+		<h1 v-show="false">欢迎{{ name }}</h1>
+
+		<!-- 使用v-if条件渲染 -->
+		<!-- v-if直接删除节点 -->
+		<h1 v-if="false">欢迎{{ name }}</h1>
+		<button @click="n++">点我</button>
+		<h1>{{n}}</h1>
+
+		<div v-if="n===1">Vue</div>
+		<div v-else-if="n===2"> Angular</div>
+		<!-- v-else不用写条件了，它不会判断的 -->
+		<div v-else>haha</div>
+
+		<!-- template不影响结构 -->
+		<!-- template只能与v-if结合 -->
+		<template v-if='n===1'>
+			<h1>hh</h1>
+			<h1>hh</h1>
+			<h1>hh</h1>
+		</template>
+
+	</div>
+	<script type="text/javascript">
+		Vue.config.productionTip = false
+		const x = new Vue({ // 传参是配置对象
+			el: '#root', // 指定作用到哪个容器上，通常使用css选择器
+			data: { // data 先写成对象的形式，后面应该是函数的形式
+				name: 'mmq',
+				n: 0
+			}
+		}) 
+	</script>
+</body>
+</html>

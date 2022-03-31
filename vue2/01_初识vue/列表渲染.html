@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<script type="text/javascript" src="../js/vue.js"></script>
+	<title>hello vue</title>
+</head>
+<body>
+	<div id="root">
+		<button @click.once="addPerson">添加人员</button>
+		<ul>
+			<!-- key最好不用index，用独一无二的id -->
+			<li v-for="person in persons" :key="person.id">
+				{{person.id}} - {{person.name}}
+			</li>
+		</ul>
+		<ul>
+			<li v-for="(person, index) in persons" :key="person.id">
+				{{person.id}} - {{person.name}} - {{index}}
+				<input type="text">
+			</li>
+		</ul>
+		<ul>
+			<li v-for="(value, key) in car" :key="key">
+				{{ key }} - {{ value }} 
+			</li>
+		</ul>
+	</div>
+	<script type="text/javascript">
+		Vue.config.productionTip = false
+		const x = new Vue({
+			el: '#root', 
+			data: { 
+				persons:[
+				{
+					id: '001',
+					name: "zhangsan1"
+				},
+				{
+					id: '002',
+					name: "zhangsan2"
+				},
+				{
+					id: '003',
+					name: "zhangsan3"
+				},
+				],
+				car:{
+					name: "audi",
+					price: "80w"
+				}
+			},
+			methods:{
+				addPerson(){
+					const p = {
+						id: '004',
+						name: "zhangsan4"
+					}
+					this.persons.unshift(p)
+				}
+			}
+		}) 
+	</script>
+</body>
+</html>

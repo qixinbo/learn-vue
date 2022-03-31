@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8" />
+		<title>绑定样式</title>
+		<style>
+			.basic{
+				width: 400px;
+				height: 100px;
+				border: 1px solid black;
+			}
+			
+			.happy{
+				border: 4px solid red;;
+				background-color: rgba(255, 255, 0, 0.644);
+				background: linear-gradient(30deg,yellow,pink,orange,yellow);
+			}
+			.sad{
+				border: 4px dashed rgb(2, 197, 2);
+				background-color: gray;
+			}
+			.normal{
+				background-color: skyblue;
+			}
+
+			.atguigu1{
+				background-color: yellowgreen;
+			}
+			.atguigu2{
+				font-size: 30px;
+				text-shadow:2px 2px 10px red;
+			}
+			.atguigu3{
+				border-radius: 20px;
+			}
+		</style>
+		<script type="text/javascript" src="../js/vue.js"></script>
+	</head>
+	<body>
+		<div id="root">
+			<!-- 适用于类名不确定，需要动态指定 -->
+			<div class="basic" :class="mood" @click="changeMood"> {{name}}</div>
+			<br/>
+			<!-- 适用于样式个数不确定、名字也不确定 -->
+			<div class="basic" :class="arr" @click="changeMood"> {{name}}</div>
+			<br/>
+			<!-- 适用于样式个数确定、名字也确定，但动态决定 -->
+			<div class="basic" :class="obj" @click="changeMood"> {{name}}</div>
+
+			<!-- 绑定style -->
+			<div class="basic" :style="styleObj" @click="changeMood"> {{name}}</div>
+		</div>
+	</body>
+
+	<script type="text/javascript">
+		Vue.config.productionTip = false
+		
+		const vm = new Vue({
+			el:'#root',
+			data:{
+				name: "mmq",
+				mood: "normal",
+				arr: ['atguigu1', 'atguigu2', 'atguigu3'],
+				obj: {
+					atguigu1: false,
+					atguigu2: false
+				},
+				styleObj: {
+					fontSize: '40px'
+				}
+			},
+			methods:{
+				changeMood(){
+					this.mood = "happy"
+				}
+			}
+		})
+	</script>
+	
+</html>

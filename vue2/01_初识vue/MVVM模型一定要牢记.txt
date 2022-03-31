@@ -1,0 +1,2 @@
+vm上的属性是vm._data中的属性做了数据代理（vm下的getter和setter）产生的；
+页面上的响应式显示是vm._data中的属性封装成observer模式，即数据劫持（vm._data下的getter和setter）实现的。
