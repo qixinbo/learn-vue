@@ -1,19 +1,17 @@
 <template>
   <div id="app">
-    <!-- 也可以给组件加ref，获取子组件或元素注册引用信息，用于组件间通信 -->
-    <MySchool ref="myshool"/>
-    <MySchool :age = "18" />
-    <MySchool :age = "34"/>
+    <img alt="Vue logo" src="./assets/logo.png">
+    <HelloWorld msg="Welcome to Your Vue.js App"/>
   </div>
 </template>
 
 <script>
-import MySchool from './components/MySchool.vue'
+import HelloWorld from './components/HelloWorld.vue'
 
 export default {
   name: 'App',
   components: {
-    MySchool
+    HelloWorld
   }
 }
 </script>
