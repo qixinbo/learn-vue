@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<script type="text/javascript" src="../js/vue.js"></script>
+	<title>hello vue</title>
+</head>
+<body>
+	<div id="root">
+		<h1 :style="{opacity}"> 透明度变化</h1>
+		<!-- {{change()}} -->
+		<h1>当前n值是： {{n}}</h1>
+		<button @click="n++">点我n++</button>
+		<button @click='bye'>点我销毁</button>
+	</div>
+
+	<script type="text/javascript">
+		Vue.config.productionTip = false
+		new Vue({ 
+			el: '#root', 
+			// template:可以在这里指定模板
+			data: { 
+				opacity: 0.5,
+				n: 1,
+			},
+			methods:{
+				bye(){
+					this.$destroy()
+				}
+			},
+			beforeCreate(){
+				console.log("beforeCreate")
+			},
+			created(){
+				console.log("created")
+			},
+
+			beforeMount(){
+				console.log("beforeMount")
+			},
+
+			// Vue完成模板解析，并把初始的真实DOM放入页面后（挂载完毕）调用mounted，即只调用一次
+			mounted(){
+				setInterval(
+						()=>{
+							// console.log(this)
+							// 箭头函数没有this，this往外找找到了vm
+							this.opacity -= 0.01
+							if (this.opacity <=0 ) this.opacity=1
+						}, 16
+					) 				
+			},
+			beforeUpdate(){
+				console.log("beforeUpdate")
+				console.log(this.n)
+			},
+			updated(){
+				console.log("updated")
+			},
+			beforeDestroy(){
+				console.log("beforeDestroy")
+			},
+			destroyed(){
+				console.log("destroyed")
+			}
+		})
+	</script>
+</body>
+</html>

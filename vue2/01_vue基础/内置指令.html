@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<script type="text/javascript" src="../js/vue.js"></script>
+	<title>hello vue</title>
+</head>
+<body>
+	<div id="root">
+		<div v-text="name"></div> <!-- 不常用 -->
+		<div v-html="str"></div> <!-- 易导致XSS攻击，慎用 -->
+		<h1 v-once>初始化n值是：{{n}}</h1> <!-- v-once初次动态渲染后，就变为静态 -->
+		<h1>当前n值是：{{n}}</h1>
+		<button @click="n++">点我n+1</button>
+
+		<h1 v-pre>这里Vue不编译</h1>
+
+	</div>
+
+	<script type="text/javascript">
+		Vue.config.productionTip = false
+		const vm = new Vue({ 
+			el: '#root', 
+			data: { 
+				name: '张三',
+				str: '<h3> 你好 </h3>',
+				n: 2
+			},
+		}) 
+	</script>
+</body>
+</html>

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<script type="text/javascript" src="../js/vue.js"></script>
+	<title>非单文件组件</title>
+
+</head>
+<body>
+	<div id="root">
+		<!-- 3. 编写组件标签 -->
+		<app/>
+	</div>
+
+	<script type="text/javascript">
+		Vue.config.productionTip = false
+
+		// 1. 创建student组件
+		const student = Vue.extend({
+			template:
+			`
+			<div>
+				<h1>Student: {{ studentName }}</h1>
+			</div>
+			`,
+			data(){ // data必须写成函数形式
+				return{
+					studentName: "Ming"
+				}
+			}
+		}
+		)
+
+		// 1. 创建school组件，是VueComponent类型
+		const school = Vue.extend({
+			template:// 定义组件结构
+			` 
+			<div>
+				<h1>School: {{ schoolName }}</h1>
+				<button @click="showName"> 点我提示学校名 </button>
+				<student/>
+			</div>
+			`,
+			data(){ // data必须写成函数形式
+				return{
+					schoolName: 'peking'
+				}
+			},
+			methods:{
+				showName(){
+					alert(this.schoolName)
+				}
+			},
+			components:{
+				student
+			}
+		}
+		)
+
+		const hello = {
+			template:`<h1>{{msg}}</h1>`,
+			data(){
+				return {msg: "hello"}
+			}
+		}
+
+		const app = {
+			template: // 一定不要忘了div根元素
+			`<div>  
+				<hello/>
+				<school/>
+			</div>
+			`,
+			components:{
+				school,
+				hello
+			}
+		}
+
+		const x = new Vue({ 
+			el: '#root',
+			// 2. 注册组件（局部注册）
+			components:{
+				app, 
+			}
+		}) 
+	</script>
+</body>
+</html>
