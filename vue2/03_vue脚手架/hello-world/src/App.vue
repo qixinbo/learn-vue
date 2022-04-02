@@ -2,9 +2,17 @@
   <div id="app">
     <div class="todo-container">
       <div class="todo-wrap">
-        <TodoHeader/>
-        <TodoList/>
-        <TodoFooter/>
+        <TodoHeader :addTodo="addTodo"/>
+        <TodoList 
+          :todos="todos" 
+          :checkTodo="checkTodo" 
+          :deleteTodo="deleteTodo" 
+        />
+        <TodoFooter
+          :todos="todos" 
+          :checkAllTodo="checkAllTodo"
+          :clearAllTodo="clearAllTodo"
+        />
       </div>
     </div>
   </div>
@@ -21,6 +29,51 @@ export default {
     TodoHeader,
     TodoList,
     TodoFooter
+  },
+  data(){
+    return{
+      // todos:[
+      // {id: '0001', title: 'eat', done: true},
+      // {id: '0002', title: 'sleep', done: false},
+      // {id: '0003', title: 'study', done: true},
+      // ]
+      todos: JSON.parse(localStorage.getItem('todos')) || []
+    }
+  },
+  methods:{
+    addTodo(todo){
+      this.todos.unshift(todo)
+    },
+    checkTodo(id){
+      this.todos.forEach((todo)=>{
+        if (todo.id === id)
+          todo.done = !todo.done
+      })
+    },
+    deleteTodo(id){
+      // 别忘了return
+      return this.todos = this.todos.filter((todo)=>{
+        return todo.id !== id
+      })
+    },
+    checkAllTodo(done){
+      this.todos.forEach((todo)=>{
+        todo.done = done
+      })
+    },
+    clearAllTodo(){
+      return this.todos = this.todos.filter((todo)=>{
+        return !todo.done
+      })
+    }
+  },
+  watch:{
+    todos:{
+      deep:true,
+      handler(value){
+        localStorage.setItem('todos', JSON.stringify(value))
+      }
+    }
   }
 }
 </script>
