@@ -1,126 +1,28 @@
 <template>
   <div id="app">
-    <div class="todo-container">
-      <div class="todo-wrap">
-        <!-- 将父给子传的函数都改成自定义事件 -->
-        <TodoHeader @addTodo="addTodo"/>
-        <TodoList 
-          :todos="todos" 
-        />
-        <TodoFooter
-          :todos="todos" 
-          @checkAllTodo="checkAllTodo"
-          @clearAllTodo="clearAllTodo"
-        />
-      </div>
-    </div>
+    <img alt="Vue logo" src="./assets/logo.png">
+    <HelloWorld msg="Welcome to Your Vue.js App"/>
   </div>
 </template>
 
 <script>
-import TodoHeader from './components/TodoHeader.vue'
-import TodoList from './components/TodoList.vue'
-import TodoFooter from './components/TodoFooter.vue'
+import HelloWorld from './components/HelloWorld.vue'
 
 export default {
   name: 'App',
   components: {
-    TodoHeader,
-    TodoList,
-    TodoFooter
-  },
-  data(){
-    return{
-      // todos:[
-      // {id: '0001', title: 'eat', done: true},
-      // {id: '0002', title: 'sleep', done: false},
-      // {id: '0003', title: 'study', done: true},
-      // ]
-      todos: JSON.parse(localStorage.getItem('todos')) || []
-    }
-  },
-  methods:{
-    addTodo(todo){
-      this.todos.unshift(todo)
-    },
-    checkTodo(id){
-      this.todos.forEach((todo)=>{
-        if (todo.id === id)
-          todo.done = !todo.done
-      })
-    },
-    deleteTodo(id){
-      // 别忘了return
-      return this.todos = this.todos.filter((todo)=>{
-        return todo.id !== id
-      })
-    },
-    checkAllTodo(done){
-      this.todos.forEach((todo)=>{
-        todo.done = done
-      })
-    },
-    clearAllTodo(){
-      return this.todos = this.todos.filter((todo)=>{
-        return !todo.done
-      })
-    }
-  },
-  watch:{
-    todos:{
-      deep:true,
-      handler(value){
-        localStorage.setItem('todos', JSON.stringify(value))
-      }
-    }
-  },
-  mounted(){
-    this.$bus.$on('checkTodo', this.checkTodo)
-    this.$bus.$on('deleteTodo', this.deleteTodo)
-  },
-  beforeDestroy(){
-    this.$bus.$off('checkTodo')
-    this.$bus.$off('deleteTodo')
+    HelloWorld
   }
 }
 </script>
 
 <style>
-  /*base*/
-  body {
-    background: #fff;
-  }
-  .btn {
-    display: inline-block;
-    padding: 4px 12px;
-    margin-bottom: 0;
-    font-size: 14px;
-    line-height: 20px;
-    text-align: center;
-    vertical-align: middle;
-    cursor: pointer;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 1px 2px rgba(0, 0, 0, 0.05);
-    border-radius: 4px;
-  }
-  .btn-danger {
-    color: #fff;
-    background-color: #da4f49;
-    border: 1px solid #bd362f;
-  }
-  .btn-danger:hover {
-    color: #fff;
-    background-color: #bd362f;
-  }
-  .btn:focus {
-    outline: none;
-  }
-  .todo-container {
-    width: 600px;
-    margin: 0 auto;
-  }
-  .todo-container .todo-wrap {
-    padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 5px;
-  }
+#app {
+  font-family: Avenir, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-align: center;
+  color: #2c3e50;
+  margin-top: 60px;
+}
 </style>
