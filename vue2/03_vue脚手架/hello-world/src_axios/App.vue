@@ -1,8 +1,6 @@
 <template>
   <div id="app">
-    <HelloWorld msg="Welcome to Your Vue.js App">
-      <img src="./assets/logo.png">
-    </HelloWorld>
+    <HelloWorld msg="Welcome to Your Vue.js App"/>
     <button @click="obtainInfo">获取信息</button>
     <ul>
       <li v-for='pet in pets' :key="pet.id">
