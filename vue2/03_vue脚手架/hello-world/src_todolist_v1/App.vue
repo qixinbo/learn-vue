@@ -2,8 +2,7 @@
   <div id="app">
     <div class="todo-container">
       <div class="todo-wrap">
-        <!-- 将父给子传的函数都改成自定义事件 -->
-        <TodoHeader @addTodo="addTodo"/>
+        <TodoHeader :addTodo="addTodo"/>
         <TodoList 
           :todos="todos" 
           :checkTodo="checkTodo" 
@@ -11,8 +10,8 @@
         />
         <TodoFooter
           :todos="todos" 
-          @checkAllTodo="checkAllTodo"
-          @clearAllTodo="clearAllTodo"
+          :checkAllTodo="checkAllTodo"
+          :clearAllTodo="clearAllTodo"
         />
       </div>
     </div>
