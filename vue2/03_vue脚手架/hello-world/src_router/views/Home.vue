@@ -3,7 +3,10 @@
 		<h1>我是Home，里面有News</h1>
 		<router-link to='/home/news'> News</router-link>
 		<div>
-			<router-view></router-view>	
+			<!-- 对组件进行缓存 -->
+			<keep-alive include="News"> 
+				<router-view></router-view>
+			</keep-alive>
 		</div>
 	</div>
 
@@ -12,6 +15,7 @@
 
 <script>
 	export default {
-		name:'Home'
+		name:'Home',
+
 	}
 </script>

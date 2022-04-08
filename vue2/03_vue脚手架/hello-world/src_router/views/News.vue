@@ -19,6 +19,9 @@
 				}">
 					{{m.title}}
 				</router-link>
+				<input type="text" name=""/>
+				<button @click="pushShow(m)">push查看</button>
+				<button @click="replaceShow(m)">replace查看</button>
 			</li>
 		</ul>
 		<hr>
@@ -38,6 +41,30 @@
 					{id: '003', title: '003消息'}
 				]
 			}
+		},
+		methods:{
+			pushShow(m){
+				this.$router.push({
+					name:'detailname',
+					query:{
+						id: m.id,
+						title: m.title					
+				}})
+			},
+			replaceShow(m){
+				this.$router.replace({
+					name:'detailname',
+					query:{
+						id: m.id,
+						title: m.title					
+				}})
+			}
+		},
+		activated(){
+			console.log("News被激活了")
+		},
+		deactivated(){
+			console.log('News deactivated')
 		}
 	}
 </script>
